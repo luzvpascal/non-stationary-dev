@@ -69,7 +69,7 @@ solving_POMDP_non_stationary_dynamics <- function(p_idle_idle_vector,
                                            length(all_models),
                                            2))
   ## solve hidden model MDP####
-  write_hmMDP_non_stationary(TR_FUNCTION = all_models,
+  write_hmMDP_non_stationary_dynamics(TR_FUNCTION = all_models,
                             TR_FUNCTION_MODELS = transition_between_models,
                             B_FULL = c(1,0),
                             B_PAR = initial_belief,

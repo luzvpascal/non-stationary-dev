@@ -38,9 +38,10 @@ library(grid)
 library(markovchain)
 library(ggnewscale)
 library(metR)
+library(ggplot2)
 
 ## useful functions ####
 file.sources = list.files("helper", pattern="*.R",full.names=TRUE)
 sapply(file.sources,source,.GlobalEnv)
-
+source("global_variables.R")
 ##

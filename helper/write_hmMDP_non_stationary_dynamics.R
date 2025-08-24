@@ -1,4 +1,4 @@
-write_hmMDP_non_stationary <- function(TR_FUNCTION,
+write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                         TR_FUNCTION_MODELS,
                         B_FULL,
                         B_PAR,
