@@ -15,7 +15,7 @@ Reward_linear_time <- function(R_0, time, alpha){
   #time: time step (as int or vector)
   #alpha: slope
   # return(R_0 + time*alpha)
-  R <- pmax(Rbau_0 + time*alpha,0) #bound by 0
+  R <- pmax(R_0 + time*alpha,0) #bound by 0
   R <- pmin(R,1)#bound by 1
   return(R)
 }
@@ -33,7 +33,9 @@ reward_non_stationary <- function(params, case_study){
         #Cdev: cost of development constant
         #alpha: slope of Rbau
         #beta: slope of Rdep
-        #horizon time steps (from 0 to horizon-1)
+        #horizon: length of decision problem (from 0 to horizon-1)
+        #p_idle_idle: probability of staying idle
+        #initial_belief:success or failure
     #"D": linear increase of Rdep and decrease of Rbau
       #params:
         #Rbau_0 = 1 linearly decreases with slope alpha
@@ -41,7 +43,9 @@ reward_non_stationary <- function(params, case_study){
         #Cdev: cost of development constant
         #alpha: slope of Rbau
         #beta: slope of Rdep
-        #horizon time steps (from 0 to horizon-1)
+        #horizon: length of decision problem (from 0 to horizon-1)
+        #p_idle_idle: probability of staying idle
+        #initial_belief:success or failure
     #"E": seasonal changes in Rbau and Rdep #no need to put the horizon
       #params:
         #Rbau = vector of values 1 for no heatwave 0 for heatwave
@@ -49,7 +53,9 @@ reward_non_stationary <- function(params, case_study){
         #Cdev: cost of development (constant)
         #p_heat: probability heat stays heat
         #p_cool: probability cool stays cool
-
+        #horizon: length of decision problem (from 0 to horizon-1)
+        #p_idle_idle: probability of staying idle
+        #initial_belief:success or failure
 
   if (case_study == "C" | case_study == "D" ){
     #linear increase or decrease of rewards
@@ -81,17 +87,17 @@ reward_non_stationary <- function(params, case_study){
 
     Cdev <- params$Cdev #constant
 
-
-    rew = matrix()
-
     for (k in seq(length(Rbau))){
-      reward_instant(Rbau[k],#at time 0
-                     Rdep[k],
-                     Cdev)
+      r_k <- reward_instant(Rbau[k],#at time 0
+                           Rdep[k],
+                           Cdev)
+      if (k==1){
+        rew <- r_k
+      } else{
       rew <- rbind(rew,
-                   reward_instant)
+                   r_k)
       }
-
+    }
     return(rew)
     }
 
@@ -114,36 +120,23 @@ transition_function_times <- function(params, case_study){
 }
 
 ## transition function tuple ####
-transition_function_states <- function(transition_times, p_idle_idle, N_tech_states=2){
-
-  #time_states: vector of states for time
-  #number of tech states (N_tech_states=2
-  #p_idle_idle probability of staying idle after investing
+transition_function_states <- function(params, case_study){
 
   #construct the transition function
-  transition_function_index <- transition_function_P1(p_idle_idle)
+  transition_times <- transition_function_times(params, case_study)
+  transition_function_index <- transition_function_P1(params$p_idle_idle)
   N_actions <- dim(transition_function_index)[3]
+  N_tech_states <- dim(transition_function_index)[1]
   N_times <- dim(transition_times)[1]
 
   transition_function <- array(0, dim=c(N_tech_states*N_times,N_tech_states*N_times,N_actions))
   for (action_index in seq(N_actions)){
     transition_function_action_index <- transition_function_index[,,action_index]
-#
-#     transition_function_action_list <- rep(list(transition_function_action_index), N_times-1)
-#     transition_function_action <- .bdiag(transition_function_action_list)
-#
-#     transition_function_action <- cbind(matrix(0,ncol=N_tech_states, nrow=nrow(transition_function_action)), transition_function_action)
-#     transition_function_action <- rbind(transition_function_action,matrix(0,nrow=N_tech_states, ncol=ncol(transition_function_action)))
-#
-#     transition_function_action[seq(nrow(transition_function_action)-1,nrow(transition_function_action)),
-#                            seq(ncol(transition_function_action)-1,ncol(transition_function_action))
-#     ] <- transition_function_action_index
-
     # Loop over each starting time
     for (t in 1:N_times) {
       # Loop over each ending time
       time_prob <- transition_times[t, ]
-      for (p in which(time_prob>0)) {
+      for (p in which(time_prob>0)) { #FOR EACH TIME STEP THAT HAS A POSITIVE TRANSITION PROBABILITY
         for (i in 1:N_tech_states) {
           # Loop over each ending ecosystem state
           start_index <- tuple_to_index(t, i, N_tech_states)
@@ -207,30 +200,110 @@ index_to_eco <- function(index, N_tech_states){
 
 
 
-voi_non_stationary_rewards <- function(p_idle_idle, Rbau_0, Rdep_0, alpha, beta, horizon, Cdev){
-  #calculate value non-stationary
-  PR <- transition_function_states(horizon, p_idle_idle)
-  REW <- reward_non_stationary(Rbau_0, Rdep_0, alpha, beta, horizon, Cdev)
+voi_non_stationary_rewards <- function(params, case_study){
+  #calculates the value of modelling non-stationarity for a given set of parameters
+  #and case study
+  #case_study:
+  #"C": linear decrease of Rbau and Rdep
+    #params:
+      #Rbau_0 = 1 linearly decreases with slope alpha
+      #Rdep_0 = 1 linearly decreases with slope beta
+      #Cdev: cost of development constant
+      #alpha: slope of Rbau
+      #beta: slope of Rdep
+      #horizon: length of decision problem (from 0 to horizon-1)
+      #p_idle_idle: probability of staying idle
+      #initial_belief:success or failure
+  #"D": linear increase of Rdep and decrease of Rbau
+    #params:
+      #Rbau_0 = 1 linearly decreases with slope alpha
+      #Rdep_0 = 0 linearly increases with slope beta
+      #Cdev: cost of development constant
+      #alpha: slope of Rbau
+      #beta: slope of Rdep
+      #horizon: length of decision problem (from 0 to horizon-1)
+      #p_idle_idle: probability of staying idle
+      #initial_belief:success or failure
+  #"E": seasonal changes in Rbau and Rdep #no need to put the horizon
+    #params:
+      #Rbau = vector of values 1 for no heatwave 0 for heatwave
+      #Rdep = #vector 0.8 for no heatwave 0.2 for heatwave
+      #Cdev: cost of development (constant)
+      #p_heat: probability heat stays heat
+      #p_cool: probability cool stays cool
+      #horizon: length of decision problem (from 0 to horizon-1)
+      #p_idle_idle: probability of staying idle
+      #initial_belief:success or failure
 
-  sol_MDP_non_stat <- mdp_finite_horizon(PR, REW, gamma, horizon, h=rep(0, nrow(REW)))
-  value_opt <- sol_MDP_non_stat$V[1,1]
+  ####################################
+  #calculate value non-stationary ####
+  ####################################
+
+  PR <- transition_function_states(params, case_study)
+  REW <- reward_non_stationary(params, case_study)
+
+  # if (case_study == "C"|case_study == "D"){
+    sol_MDP_non_stat <- mdp_finite_horizon(PR, REW, gamma, params$horizon, h=rep(0, nrow(REW)))
+    value_opt <- sol_MDP_non_stat$V[1,1]
+  # } else if (case_study == "E"){
+  #   sol_MDP_non_stat <- mdp_value_iteration(PR, REW, gamma)
+  #   value_opt <- sol_MDP_non_stat$V[1]
+  # }
 
   #calculate value uncertainty
-  times_VOI <- seq(horizon)-1
+  times_VOI <- seq(nrow(REW)/2) #divided by 2 states
   values_VOI <- c()
   reward_0 <- matrix(0, nrow=2,ncol = 2)#two states two actions
   for (t in times_VOI){
-    reward_t <- reward_instant(Rbau_time(Rbau_0, t, alpha),
-                               Rdep_time(Rdep_0, t, beta),
-                               Cdev)
-    reward_t <- matrix(rep(c(t(reward_t)), horizon-1), ncol = 2,byrow=TRUE)#two actions
-    reward_t <- rbind(reward_t, reward_0)
-    sol_t <- mdp_finite_horizon(PR, reward_t, gamma, horizon, h=rep(0, nrow(REW)))
-    policy_t <- sol_t$policy[,1]
+    start_index <- tuple_to_index(t, 1)
+    end_index <- tuple_to_index(t, 2)
+    reward_t <- REW[c(start_index, end_index),]
 
-    value_policy_t <-mdp_eval_policy_iterative(PR, REW, gamma, policy_t)
+    if (case_study == "C"|case_study == "D"){
+      reward_t <- matrix(rep(c(t(reward_t)), params$horizon-1), ncol = 2,byrow=TRUE)#two actions
+      reward_t <- rbind(reward_t, reward_0)
+    } else if (case_study == "E"){
+      reward_t <- rbind(reward_t, reward_t)
+    }
+
+    sol_t <- mdp_finite_horizon(PR, reward_t, gamma, params$horizon, h=rep(0, nrow(REW)))
+    policy_t <- sol_t$policy[,1]
+    value_policy_t <- mdp_eval_policy_iterative(PR, REW, gamma, c(policy_t))
     values_VOI <- c(values_VOI, value_policy_t[1,1])
+
+    #   sol_t <- mdp_value_iteration(PR, reward_t, gamma)
+    #   policy_t <- sol_t$policy
+    #   #calculate value with the stationary policy
+    #   value_policy_t <- mdp_eval_policy_iterative(PR, REW, gamma, policy_t)
+    #   value_policy_t <- mdp_eval_policy_iterative(PR, REW, gamma, c(2,2,2,1))
+    #   values_VOI <- c(values_VOI, value_policy_t[1])
+    # }
+
   }
   #return the value of information
   return(c(value_opt, max(values_VOI)))
 }
+
+plot_result <- function(df) {
+  # grab first two column names dynamically
+  xcol <- names(df)[1]
+  ycol <- names(df)[2]
+
+  df %>%
+    mutate(EVPI = (opt - stat) / opt) %>%
+    ggplot(aes(
+      x = .data[[xcol]],
+      y = .data[[ycol]],
+      fill = EVPI * 100
+    )) +
+    # geom_raster(interpolate = TRUE) +
+    geom_raster() +
+    scale_fill_gradient(low = "white", high = "blue") +
+    labs(
+      # x = TeX("Slope change baseline rewards $\\alpha$"),
+      # y = TeX("Slope change deployment rewards $\\beta$"),
+      fill = TeX("Value of modelling\nnon-stationary rewards")
+    ) +
+    coord_equal()
+}
+
