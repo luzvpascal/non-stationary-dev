@@ -94,7 +94,7 @@ trajectory <- function(state_prior,
       V <- rew_mdp[state[i], actions[i]]
       r <- rew_mdp[state[i], actions[i]]
     } else {
-      V <- c(V, V[i-1] + disc**(i)*rew_mdp[state[i], actions[i]])
+      V <- c(V, V[i-1] + disc**(i-1)*rew_mdp[state[i], actions[i]])
       r <- c(r, rew_mdp[state[i], actions[i]])
     }
 
@@ -128,10 +128,11 @@ trajectory <- function(state_prior,
 
 
 
+
 sim_mdp_momdp_policy <- function(state_prior,
                                  Tmax,
                                  initial_belief_state,
-                                 tr_mdp,
+                                 list_tr_mdp,
                                  rew_mdp,
                                  tr_momdp,
                                  obs_momdp,
@@ -143,11 +144,12 @@ sim_mdp_momdp_policy <- function(state_prior,
                                  average=TRUE,
                                  alpha_indexes=FALSE) {
   #inputs
-  # state_prior: index of observable variable
+  # steady_state: steady state under current management
   # Tmax: horizon considered in the simulated trajectory
 
   # initial_belief_state: vector, prior on partially observable models
-  # tr_mdp: transition function of the real mdp on which hmMDP policy is tested (X, X, A)
+  # list_tr_mdp: possible transition function of the real mdp on which hmMDP policy is tested (list of models) (X, X, A)
+  # must have the same size as initial_belief_state
   # rew_mdp: reward function of the reefs. matrix of dim (X, A)
   # tr_momdp: transition function of the hmMDP as returned by transition_hmMDP (X.Y,X.Y,A)
   # obs_momdp:observation function as returned by obs_hmMDP(X.Y,X,A)
@@ -171,6 +173,107 @@ sim_mdp_momdp_policy <- function(state_prior,
   # else : return a concatenation of data.frames as returned by trajectory
 
   #create a list of dataframes as returned by trajectory
+  indexes_mdps <- sample(1:length(initial_belief_state), n_it, replace=TRUE, prob = initial_belief_state)
+
+  cores=parallel::detectCores()
+  cl <- parallel::makeCluster(cores[1]-2) #not to overload your computer
+  doParallel::registerDoParallel(cl)
+  list_results <- foreach::foreach(i=1:n_it,
+                                   .export=c('trajectory',
+                                             'sum_Nstate_by_Nstate',
+                                             'belief_state_function',
+                                             'interp_policy2',
+                                             'update_belief')) %dopar% {
+                                               trajectory(state_prior,
+                                                          Tmax,
+                                                          initial_belief_state,
+                                                          list_tr_mdp[[indexes_mdps[i]]],
+                                                          rew_mdp,
+                                                          tr_momdp,
+                                                          obs_momdp,
+                                                          alpha_momdp,
+                                                          disc,
+                                                          optimal_policy,
+                                                          naive_policy,
+                                                          alpha_indexes)$data_output
+                                             }
+  parallel::stopCluster(cl)
+
+  #rbind all dataframes
+  list_results <- dplyr::bind_rows(list_results, .id = "simulation")
+  list_results$index_mdp <- indexes_mdps[as.numeric(list_results$simulation)]
+  if (average){
+    list_results <- data.table::data.table(list_results)
+    list_results <- list_results[,mean(value), by = time]
+    return(list_results$V1)
+  } else {
+    return(list_results)
+  }
+}
+
+
+modify_mod_probs <- function(result_list, action_bool=FALSE) {
+  modified_list <- lapply(result_list, function(result) {
+    state_col <- result$data_output$state
+    mod_probs_matrix <- result$mod_probs
+    mod_probs_with_state <- cbind(mod_probs_matrix, state = state_col)
+    if (action_bool){
+      action_col <- result$data_output$action
+      mod_probs_with_state <- cbind(mod_probs_with_state, action = action_col)
+    }
+
+    result$mod_probs <- mod_probs_with_state
+    result
+  })
+  modified_list
+}
+
+
+sim_mdp_momdp_policy_fixed_mdp <- function(state_prior,
+                                 Tmax,
+                                 initial_belief_state,
+                                 tr_mdp,
+                                 rew_mdp,
+                                 tr_momdp,
+                                 obs_momdp,
+                                 alpha_momdp,
+                                 disc = 0.95,
+                                 optimal_policy = TRUE,
+                                 naive_policy = NA,
+                                 n_it = 100,
+                                 average=TRUE,
+                                 alpha_indexes=FALSE) {
+  #inputs
+  # steady_state: steady state under current management
+  # Tmax: horizon considered in the simulated trajectory
+
+  # initial_belief_state: vector, prior on partially observable models
+  # tr_mdp: true transition function of the real mdp on which hmMDP policy is tested (X, X, A)
+  # must have the same size as initial_belief_state
+  # rew_mdp: reward function of the reefs. matrix of dim (X, A)
+  # tr_momdp: transition function of the hmMDP as returned by transition_hmMDP (X.Y,X.Y,A)
+  # obs_momdp:observation function as returned by obs_hmMDP(X.Y,X,A)
+
+  # alpha_momdp: solution list of alpha vectors/actions/obs as returned by read_policyx2
+  # disc = discount factor
+  # optimal_policy : boolean indicating if we are using the optimal policy of the hmmdp or
+  # a naive policy
+
+  # n_it = number of iterations, number of times a trajectory is computed
+  # average : bool, average the value function among all iterations
+
+  #alpha_indexes: boolean indicating if simulation returns indexes of used alpha vectors
+
+  #function:
+  # simulated n_it trajectories to compute the expected sum of discounted rewards
+  # when using the optimal policy of a hmMDP
+
+  #output: data.frame
+  # if average: return a vector of expected sum of discounted rewards for each time step
+  # else : return a concatenation of data.frames as returned by trajectory
+
+  #create a list of dataframes as returned by trajectory
+
   cores=parallel::detectCores()
   cl <- parallel::makeCluster(cores[1]-2) #not to overload your computer
   doParallel::registerDoParallel(cl)
@@ -191,20 +294,21 @@ sim_mdp_momdp_policy <- function(state_prior,
                                                           disc,
                                                           optimal_policy,
                                                           naive_policy,
-                                                          alpha_indexes)
+                                                          alpha_indexes)$data_output
                                              }
   parallel::stopCluster(cl)
-  return(list_results)
-  # #rbind all dataframes
-  # list_results <- dplyr::bind_rows(list_results, .id = "column_label")
-  # if (average){
-  #   list_results <- data.table::data.table(list_results)
-  #   list_results <- list_results[,mean(value), by = time]
-  #   return(list_results$V1)
-  # } else {
-  #   return(list_results)
-  # }
+
+  #rbind all dataframes
+  list_results <- dplyr::bind_rows(list_results, .id = "simulation")
+  if (average){
+    list_results <- data.table::data.table(list_results)
+    list_results <- list_results[,mean(value), by = time]
+    return(list_results$V1)
+  } else {
+    return(list_results)
+  }
 }
+
 
 modify_mod_probs <- function(result_list, action_bool=FALSE) {
   modified_list <- lapply(result_list, function(result) {
@@ -221,4 +325,3 @@ modify_mod_probs <- function(result_list, action_bool=FALSE) {
   })
   modified_list
 }
-

@@ -39,6 +39,7 @@ library(markovchain)
 library(ggnewscale)
 library(metR)
 library(ggplot2)
+library(ggallin)
 
 ## useful functions ####
 file.sources = list.files("helper", pattern="*.R",full.names=TRUE)

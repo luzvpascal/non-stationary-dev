@@ -5,5 +5,5 @@
 .Ruserdata
 
 #all POMDPX and POLICYX files
-res/policyx/*
-res/pomdpx/*
+res/*
+res/*

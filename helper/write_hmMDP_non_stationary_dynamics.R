@@ -1,22 +1,30 @@
 write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                         TR_FUNCTION_MODELS,
+                        TR_FUNCTION_TIMES,
                         B_FULL,
+                        B_FULL_TIME,
                         B_PAR,
                         REW,
                         GAMMA,
                         FILE){
   # TR_FUNCTION: list of arrays of size [s,s,a]
   # TR_FUNCTION_MODELS: transition function between models
-  # REW: matrix of size [s,a]
-  # B_FULL: vector, probability distribution over the fully observable states
+  # TR_FUNCTION_TIMES: transition function between time steps
+  # B_FULL: vector, probability distribution over the fully observable state(technologies)
+  # B_FULL_TIME: vector, probability distribution over the fully observable states (time steps)
   # B_PAR:vector, probability distribtution over the non observable states (number of models)
+  # REW: matrix of size [s*t,a]
   # GAMMA: number between 0 and 1, the discount factor
   # FILE: string, path to the pomdpx file
+
   Num_s <- dim(TR_FUNCTION[[1]])[1]
+  Num_times <- dim(TR_FUNCTION_TIMES)[1]
+
   Num_a <-dim(TR_FUNCTION[[1]])[3]
   Num_mod <- length(TR_FUNCTION)
 
   STATES <- paste0("obs_state", 1:Num_s)
+  TIMES <- paste0("time_state", 1:Num_times)
   ACTIONS <- paste0("action", 1:Num_a)
   MODELS <- paste0("model", 1:Num_mod)
 
@@ -26,6 +34,10 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                    "<Description>hmMDP model</Description>\n\n",
                    paste0("<Discount>",  GAMMA, "</Discount>"), "\n\n",
                    "<Variable>", "\n\n")
+
+  header_time <- paste0("<StateVar vnamePrev=\"times_0\" vnameCurr=\"times_1\" fullyObs=\"true\">",
+                        "\n", paste0("<ValueEnum>", paste0(TIMES, collapse = " "),
+                                     "</ValueEnum>"), "\n", "</StateVar>", "\n\n")
 
   header_state <- paste0("<StateVar vnamePrev=\"species_0\" vnameCurr=\"species_1\" fullyObs=\"true\">",
                          "\n", paste0("<ValueEnum>", paste0(STATES, collapse = " "),
@@ -57,6 +69,19 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                           "</CondProb>\r\n\n",
 
                           "<CondProb>\r\n",
+                          "<Var>times_0</Var>\r\n",
+                          "<Parent>null</Parent>\r\n",
+                          "<Parameter type=\"TBL\">\r\n",
+
+                          "<Entry>\r\n",
+                          "<Instance> - </Instance>\r\n",
+                          "<ProbTable>", paste0(B_FULL_TIME, collapse = " "), "</ProbTable>\n",
+                          "</Entry>\r\n",
+
+                          "</Parameter>\r\n",
+                          "</CondProb>\r\n\n",
+
+                          "<CondProb>\r\n",
                           "<Var>hidden_0 </Var>\r\n",
                           "<Parent>null</Parent>\r\n",
                           "<Parameter type=\"TBL\">\r\n",
@@ -71,6 +96,7 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                           , sep = "")
 
   header <- paste0(header,
+                   header_time,
                    header_state,
                    header_model,
                    header_action,
@@ -121,6 +147,32 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
 
   mod_tr <- paste(mod_tr_header, mod_tr_filling, mod_tr_end)
 
+  ## transition between time steps ####
+  tr_times <-paste("<CondProb>\r\n",
+                   "<Var>times_1</Var>\r\n",
+                   "<Parent>times_0</Parent>\r\n",
+                   "<Parameter type=\"TBL\">\r\n")
+
+  for (time0_id in seq(Num_times)){
+    time0_text <- TIMES[time0_id]
+    for (time1_id in seq(Num_times)){
+      time1_text <- TIMES[time1_id]
+
+      tr_times <- paste(tr_times,
+                        "<Entry>\r\n",
+                        "<Instance>",
+                        time0_text, time1_text,
+                        " </Instance>\r\n",
+                        "<ProbTable>",
+                        as.character(TR_FUNCTION_TIMES[time0_id,time1_id]),
+                        "</ProbTable>\r\n",
+                        "</Entry>\r\n")
+    }
+  }
+  tr_times <- paste(tr_times,
+                    "</Parameter>\r\n",
+                    "</CondProb>\r\n\n")
+
   ## transition between models ####
   tr_models <-paste("<CondProb>\r\n",
                     "<Var>hidden_1</Var>\r\n",
@@ -152,9 +204,9 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
                     "</StateTransitionFunction>\r\n\n\n")
 
 
-  state_tr <- paste(mod_tr, tr_models)
-  # build div for observations ####
+  state_tr <- paste(mod_tr, tr_times, tr_models)
 
+  # build div for observations ####
   obs_header <- "<ObsFunction>\r\n\n"
   obs_fill <-paste(
     "<CondProb>\r\n",
@@ -184,23 +236,34 @@ write_hmMDP_non_stationary_dynamics <- function(TR_FUNCTION,
     "<RewardFunction>\r\n",
     "<Func>\r\n",
     "<Var>reward_agent</Var>\r\n",
-    "<Parent>action_control species_0</Parent>\r\n",
+    "<Parent>action_control times_0 species_0</Parent>\r\n",
     "<Parameter type=\"TBL\">\r\n"
   )
+  for (act_id in seq(Num_a)){
+    action_text <- ACTIONS[act_id]
+    for (time0_id in seq(Num_times)){
+      time0_text <- TIMES[time0_id]
+      for (state0_id in seq(Num_s)){
+        state0_text <- STATES[state0_id]
 
-  rew_fill <- paste0(
-    "<Entry>\r\n",
-    "<Instance> - - </Instance>\r\n",
-    "<ValueTable>", paste0((REW), collapse = " "), "</ValueTable>\r\n",
-    "</Entry>\r\n"
-  )
-
+        rew_header <- paste(rew_header,
+                            "<Entry>\r\n",
+                            "<Instance>",
+                            action_text, time0_text, state0_text,
+                            " </Instance>\r\n",
+                            "<ValueTable>",
+                            as.character(REW[tuple_to_index(time0_id,state0_id),act_id]),
+                            "</ValueTable>\r\n",
+                            "</Entry>\r\n")
+      }
+    }
+  }
 
   rew_end <- "</Parameter>\r\n
     </Func>\r\n
     </RewardFunction>\r\n\n\n"
 
-  rew <- paste(rew_header, rew_fill, rew_end)
+  rew <- paste(rew_header, rew_end)
 
   end <- "</pomdpx>"
 
