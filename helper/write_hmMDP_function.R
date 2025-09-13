@@ -1,4 +1,4 @@
-write_hmMDP <- function(TR_FUNCTION, B_FULL, B_PAR, REW, GAMMA, FILE){
+write_hmMDP_function <- function(TR_FUNCTION, B_FULL, B_PAR, REW, GAMMA, FILE){
   # TR_FUNCTION: list of arrays of size [s,s,a], where each array is a model
   # B_FULL: vector, probability distribution over the fully observable states
   # B_PAR:vector, probability distribtution over the non observable states

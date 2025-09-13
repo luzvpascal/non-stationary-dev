@@ -194,6 +194,9 @@ extract_trajectories <- function(rew, horizon, case_study_name = "unknown") {
 transition_function_times <- function(params){
   # if (case_study == "A"|case_study == "B"|case_study == "C"|case_study == "D"|case_study == "F"|case_study == "G"){
     horizon <- params$horizon
+    if (horizon == 1){
+      return(matrix(1, ncol=1,nrow=1))
+    }
     mat <- diag(horizon-1)
     mat <- cbind(rep(0,horizon-1), mat)
     mat <- rbind(mat, c(rep(0,horizon-1),1))
@@ -342,55 +345,89 @@ voi_static_non_stationary_rewards <- function(params){
               REW=REW))
 }
 
-voi_non_stationary_rewards <- function(params){
+voi_non_stationary_rewards <- function(params,
+                                       write_hmMDP,
+                                       solve_hmMDP,
+                                       file_pomdpx_index,
+                                       file_outpolicy_index){
   ####################################
   #calculate value non-stationary ####
   ####################################
-  #non-stationary reward function
-  REW <- reward_non_stationary(params)
 
+  #solve the non-stationary problem
+  outputs <- solving_uncertain_nonstat_rewards_POMDP(params,
+                                                     write_hmMDP,
+                                                     solve_hmMDP,
+                                                     file_pomdpx_index,
+                                                     file_outpolicy_index)
 
-  #models for technology development ####
-  models_tech <- list()
-  params_fail <- params
-  params_fail$pdev <- 0
-  params_fail$p_idle_idle <- 1-params_fail$pdev
+  alpha_non_stat <- read_policyx2(file_outpolicy_index)
 
-  models_tech[[1]] <- transition_function_P1(params$p_idle_idle)
-  models_tech[[2]] <- transition_function_P1(params_fail$p_idle_idle)
+  value_non_stat <- interp_policy2(params$initial_belief,
+                                   obs = 1,
+                                   alpha = alpha_non_stat$vectors,
+                                   alpha_action = alpha_non_stat$action,
+                                   alpha_obs = alpha_non_stat$obs,
+                                   alpha_index = alpha_non_stat$index)[[1]]
 
-  #make transition function times
-  transition_times <- transition_function_times(params, case_study_name)
+  #stationary params list
+  params_stationary <- params
+  params_stationary$horizon <- 1
+  params_stationary$alpha <- 0
+  params_stationary$beta <- 0
 
-  #whole transition function
-  models <- list()
-  models[[1]] <- transition_function_states(params, case_study_name)
-  models[[2]] <- transition_function_states(params_fail, case_study_name)
+  best_value_stat <- 0
+  best_t_stat <- 0
 
-  ##
-  sol_MDP_non_stat <- mdp_value_iteration(PR, REW, gamma)
-  value_opt <- mdp_eval_policy_iterative(PR, REW, gamma, sol_MDP_non_stat$policy)[1]
+  # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
+  for (t in seq(params$horizon)){
+    params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
+    params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
 
-  #calculate value uncertainty
-  stat_strategies <- expand.grid(idle=c(1,2),ready=c(1,2))#only 4 strategies
-  # times_VOI <- seq(nrow(REW)/2) #divided by 2 states
-  max_values_VOI <- 0
-  # reward <- matrix(0, nrow=2,ncol = 2)#two states two actions
-  # for (t in times_VOI){
-  for (t in seq(nrow(stat_strategies))){
-    stat_strat <- unlist(unname(c(stat_strategies[t,])))
-    policy_t <- rep(stat_strat, params$horizon)
+    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+    outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
+                       params_stationary$initial_belief,
+                       reward_POMDP,
+                       solve_hmMDP,
+                       paste0("res/value_non_stat/case_study", t,".pomdpx"),
+                       paste0("res/value_non_stat/case_study", t,".policyx"))
 
-    value_policy_t <- mdp_eval_policy_iterative(PR, REW, gamma, c(policy_t))
+    alpha_momdp <- read_policyx2(paste0("res/value_non_stat/case_study", t,".policyx"))
 
-    values_VOI <- value_policy_t[1]
+    #apply the stationary strategy to the non-stationary problem success
+    value_stat_success <- sim_apply_stationary_strategy_fixed_mdp(state_prior_tech=1,
+                                                 Tmax=params$horizon,
+                                                 initial_belief_state_tech=params$initial_belief,
+                                                 outputs_stat$all_models,
+                                                 outputs_stat$all_models[[1]],
+                                                 outputs$REW[[1]],
+                                                 alpha_momdp,
+                                                 disc = gamma,
+                                                 optimal_policy = TRUE,
+                                                 average=TRUE,
+                                                 n_it = 500)[params$horizon]
 
-    if (values_VOI>max_values_VOI){
-      max_values_VOI <- values_VOI
-      policy_sol <- policy_t
+    #apply the stationary strategy to the non-stationary problem failure
+    value_stat_failure <- (trajectory_apply_stationary_strategy(state_prior_tech=1,
+                                                          Tmax=params$horizon,
+                                                          initial_belief_state_tech=params$initial_belief,
+                                                          outputs_stat$all_models,
+                                                          outputs_stat$all_models[[2]],
+                                                          outputs$REW[[1]],
+                                                          alpha_momdp,
+                                                          disc = gamma,
+                                                          optimal_policy = TRUE))$data_output$value[params$horizon]
+
+    # average stat value
+    value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+
+    #compare
+    if (value_stat>best_value_stat){
+      best_value_stat <- value_stat
+      best_t_stat <- t
     }
-
   }
+
   #return the value of information
   return(list(opt=value_opt,
               stat=max_values_VOI,
