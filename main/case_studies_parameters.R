@@ -37,14 +37,18 @@ PARAMS_B$p_idle_idle = p_idle_idle
 PARAMS_B$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(-10^seq(-1, -3))
+varying_vals <- c(-10^seq(-1, -3),0)
 
 PARAMS_B$case_studies = expand.grid(
   alpha = varying_vals,
+  beta = varying_vals,
   Rbau = seq(0.2, 1, 0.2),
-  Rdep = seq(0, 1, 0.2),
-  beta = varying_vals
+  Rdep = seq(0.2, 1, 0.2)
 )
+PARAMS_B$case_studies <- PARAMS_B$case_studies %>%
+  filter(Rbau<Rdep)%>%
+  filter(!(beta==0 & alpha==0))
+
 PARAMS_B$N_case_studies = nrow(PARAMS_B$case_studies)
 
 PARAMS_B$log_scale_x = FALSE
@@ -67,14 +71,18 @@ PARAMS_C$p_idle_idle = p_idle_idle
 PARAMS_C$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(10^seq(0, -3))
+varying_vals <- c(10^seq(-1, -3),0)
 
 PARAMS_C$case_studies = expand.grid(
-  Rbau = seq(0.2, 1, 0.2),
-  Rdep = seq(0, 1, 0.2),
   alpha = -varying_vals,
-  beta = varying_vals
+  beta = varying_vals,
+  Rbau = seq(0.2, 1, 0.2),
+  Rdep = seq(0, 1, 0.2)
 )
+PARAMS_C$case_studies <- PARAMS_C$case_studies %>%
+  filter(Rbau>=Rdep)%>%
+  filter(!(beta==0 & alpha==0))
+
 PARAMS_C$N_case_studies = nrow(PARAMS_C$case_studies)
 
 PARAMS_C$log_scale_x = FALSE

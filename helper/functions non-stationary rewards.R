@@ -396,9 +396,10 @@ get_Tmax <- function(params,
     Tmax <- 0 # Lengths of consecutive 1s
     start <- 0 # Start positions of consecutive 1s
   }
-  return(data.frame(value_non_stat=value_non_stat,
+  return(list(result=data.frame(value_non_stat=value_non_stat,
                     Tmax=Tmax,
-                    start=start))
+                    start=start),
+              outputs=outputs))
 
 }
 
@@ -415,11 +416,14 @@ voi_non_stationary_rewards <- function(params,
   #evaluate the value of modelling non-stationary rewards
   #only for case studies without uncertainty about reward trajectory
 
-  result <- get_Tmax(params,
+  output_list <- get_Tmax(params,
                      write_hmMDP,
                      solve_hmMDP,
                      paste0(file_name_pomdpx,".pomdpx"),
                      paste0(file_name_policyx, ".policyx"))
+
+  result <- output_list$result
+  outputs <- output_list$outputs
 
   if (run_voi){
     #stationary params list
