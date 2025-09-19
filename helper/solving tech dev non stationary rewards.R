@@ -35,8 +35,13 @@ solving_POMDP_non_stationary_rewards <- function(TR_FUNCTION,
   }
 
   if (solve_hmMDP){
-    path_to_sarsop <- system.file("bin/x64", "pomdpsol.exe", package="sarsop")
-
+    sys_info <- Sys.info()
+    os_name <- sys_info["sysname"]
+    if (os_name=="Windows"){
+      path_to_sarsop <- system.file("bin/x64", "pomdpsol.exe", package="sarsop")
+    } else if (os_name=="Linux"){
+      path_to_sarsop <- system.file("bin", "pomdpsol", package="sarsop")
+    }
     cmd <- paste(path_to_sarsop,
                  "--precision", precision,
                  "--timeout", timeout ,
