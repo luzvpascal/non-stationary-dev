@@ -405,8 +405,8 @@ get_Tmax <- function(params,
 voi_non_stationary_rewards <- function(params,
                                        write_hmMDP,
                                        solve_hmMDP,
-                                       file_pomdpx,
-                                       file_policyx,
+                                       file_name_pomdpx,
+                                       file_name_policyx,
                                        run_voi
                                        ){
   ############################################
@@ -418,8 +418,8 @@ voi_non_stationary_rewards <- function(params,
   result <- get_Tmax(params,
                      write_hmMDP,
                      solve_hmMDP,
-                     file_pomdpx,
-                     file_policyx)
+                     paste0(file_name_pomdpx,".pomdpx"),
+                     paste0(file_name_policyx, ".policyx"))
 
   if (run_voi){
     #stationary params list
@@ -432,10 +432,11 @@ voi_non_stationary_rewards <- function(params,
     best_t_stat <- 0
 
     # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
-    time_steps <- c(1, round(params$horizon/2), params$horizon)
+    # time_steps <- c(1, round(params$horizon/2), params$horizon)
     # time_steps <- seq(params$horizon)
+    time_steps <- c(seq(1, params$horizon,10), params$horizon)
+
     for (t in time_steps){
-      # for (t in seq(params$horizon)){
       params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
       params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
 
@@ -444,10 +445,10 @@ voi_non_stationary_rewards <- function(params,
                                     params_stationary$initial_belief,
                                     reward_POMDP,
                                     solve_hmMDP,
-                                    paste0(file_name,"_stationary_",t, ".pomdpx"),
-                                    paste0(file_name,"_stationary_",t, ".policyx"))
+                                    paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
+                                    paste0(file_name_policyx,"_stationary_",t, ".policyx"))
 
-      alpha_momdp <- read_policyx2(paste0(file_name,"_stationary_",t, ".policyx")) #stationary strategy
+      alpha_momdp <- read_policyx2(paste0(file_name_policyx,"_stationary_",t, ".policyx")) #stationary strategy
 
       # ## improve with Peron lower bound ####
       # models <- list()

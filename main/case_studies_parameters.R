@@ -1,4 +1,4 @@
-horizon <- 30
+horizon <- 50
 pdev <- 0.1
 p_idle_idle <- 1-pdev
 initial_belief <-  c(0.5,0.5)
@@ -37,7 +37,7 @@ PARAMS_B$p_idle_idle = p_idle_idle
 PARAMS_B$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(-10^seq(0, -3))
+varying_vals <- c(-10^seq(-1, -3))
 
 PARAMS_B$case_studies = expand.grid(
   alpha = varying_vals,
