@@ -164,7 +164,8 @@ sim_non_stationary_rewards_fixed_mdp <- function(state_prior_tech,
   # else : return a concatenation of data.frames as returned by trajectory
 
   #create a list of dataframes as returned by trajectory
-  cores=parallel::detectCores()
+  # cores=parallel::detectCores()
+  cores <- parallelly::availableCores()
   cl <- parallel::makeCluster(cores[1]-2) #not to overload your computer
   doParallel::registerDoParallel(cl)
   list_results <- foreach::foreach(i=1:n_it,
