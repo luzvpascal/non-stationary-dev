@@ -55,7 +55,7 @@ reward_non_stationary <- function(params){
     beta <- params$beta
 
     for (t in seq(0,horizon-1)){ #
-    # for (t in seq(horizon-2)){ #
+    # for (t in seq(0,horizon-2)){ #
       reward_t = reward_instant(Reward_linear_time(Rbau, t, alpha),
                                 Reward_linear_time(Rdep, t, beta),
                                 Cdev)
@@ -66,6 +66,11 @@ reward_non_stationary <- function(params){
                      reward_t)
       }
     }
+    # reward_t = reward_instant(0,
+    #                           0,
+    #                           0)
+    # rew <- rbind(rew,
+    #              reward_t)
     return(rew)
   } else if (params$type=="season"){
     Rbau <- params$Rbau #vector 1 for no heatwave 0 for heatwave
@@ -157,7 +162,7 @@ reward_non_stationary_wrapper <- function(params) {
   return(results)
 }
 
-## reward trajectories ####
+## extract reward trajectories ####
 extract_trajectories <- function(rew, horizon, case_study_name = "unknown") {
   time <- seq(0, horizon - 1)
 
@@ -345,24 +350,20 @@ voi_static_non_stationary_rewards <- function(params){
               REW=REW))
 }
 
-voi_non_stationary_rewards <- function(params,
-                                       write_hmMDP,
-                                       solve_hmMDP,
-                                       file_pomdpx_index,
-                                       file_outpolicy_index){
-  ####################################
-  #calculate value non-stationary ####
-  ####################################
-
+get_Tmax <- function(params,
+                     write_hmMDP,
+                     solve_hmMDP,
+                     file_pomdpx,
+                     file_policyx){
   #solve the non-stationary problem
   outputs <- solving_uncertain_nonstat_rewards_POMDP(params,
                                                      write_hmMDP,
                                                      solve_hmMDP,
-                                                     file_pomdpx_index,
-                                                     file_outpolicy_index)
+                                                     file_pomdpx,
+                                                     file_policyx)
 
-  alpha_non_stat <- read_policyx2(file_outpolicy_index)
-
+  alpha_non_stat <- read_policyx2(file_policyx)
+  #get optimal value
   value_non_stat <- interp_policy2(params$initial_belief,
                                    obs = 1,
                                    alpha = alpha_non_stat$vectors,
@@ -370,250 +371,290 @@ voi_non_stationary_rewards <- function(params,
                                    alpha_obs = alpha_non_stat$obs,
                                    alpha_index = alpha_non_stat$index)[[1]]
 
-  #stationary params list
-  params_stationary <- params
-  params_stationary$horizon <- 1
-  params_stationary$alpha <- 0
-  params_stationary$beta <- 0
+  trajectory_non_stat_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+                                                                    # Tmax=params$horizon,
+                                                                    Tmax=Tmax_SIM,
+                                                                    initial_belief_state_tech=params$initial_belief,
+                                                                    transition_tech=outputs$TR_FUNCTION,
+                                                                    true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+                                                                    reward_non_stat=outputs$REW[[1]],
+                                                                    alpha_momdp=alpha_non_stat,
+                                                                    disc = gamma,
+                                                                    non_stationary_strategy = TRUE,
+                                                                    alpha_indexes = TRUE))
 
-  best_value_stat <- 0
-  best_t_stat <- 0
+  #get the optimal Tmax
+  actions <- (trajectory_non_stat_failure$data_output$action[-(Tmax_SIM+1)]-1)
+  if (sum(actions)>0){
+    r <- rle(actions)
+    Tmax <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+    start <- cumsum(r$lengths)[r$values == 1] - Tmax   # Start positions of consecutive 1s
+    # if (length(start)>1){
+    #   return(0)
+    # }
+  } else {
+    Tmax <- 0 # Lengths of consecutive 1s
+    start <- 0 # Start positions of consecutive 1s
+  }
+  return(data.frame(value_non_stat=value_non_stat,
+                    Tmax=Tmax,
+                    start=start))
 
-  # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
-  for (t in seq(params$horizon)){
-    params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
-    params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
+}
 
-    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
-    outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
-                       params_stationary$initial_belief,
-                       reward_POMDP,
-                       solve_hmMDP,
-                       paste0("res/value_non_stat/case_study", t,".pomdpx"),
-                       paste0("res/value_non_stat/case_study", t,".policyx"))
+voi_non_stationary_rewards <- function(params,
+                                       write_hmMDP,
+                                       solve_hmMDP,
+                                       file_pomdpx,
+                                       file_policyx,
+                                       run_voi
+                                       ){
+  ############################################
+  #calculate value non-stationary rewards ####
+  ############################################
+  #evaluate the value of modelling non-stationary rewards
+  #only for case studies without uncertainty about reward trajectory
 
-    alpha_momdp <- read_policyx2(paste0("res/value_non_stat/case_study", t,".policyx"))
+  result <- get_Tmax(params,
+                     write_hmMDP,
+                     solve_hmMDP,
+                     file_pomdpx,
+                     file_policyx)
 
-    #apply the stationary strategy to the non-stationary problem success
-    value_stat_success <- sim_apply_stationary_strategy_fixed_mdp(state_prior_tech=1,
-                                                 Tmax=params$horizon,
-                                                 initial_belief_state_tech=params$initial_belief,
-                                                 outputs_stat$all_models,
-                                                 outputs_stat$all_models[[1]],
-                                                 outputs$REW[[1]],
-                                                 alpha_momdp,
-                                                 disc = gamma,
-                                                 optimal_policy = TRUE,
-                                                 average=TRUE,
-                                                 n_it = 500)[params$horizon]
+  if (run_voi){
+    #stationary params list
+    params_stationary <- params
+    params_stationary$horizon <- 1
+    params_stationary$alpha <- 0
+    params_stationary$beta <- 0
 
-    #apply the stationary strategy to the non-stationary problem failure
-    value_stat_failure <- (trajectory_apply_stationary_strategy(state_prior_tech=1,
-                                                          Tmax=params$horizon,
-                                                          initial_belief_state_tech=params$initial_belief,
-                                                          outputs_stat$all_models,
-                                                          outputs_stat$all_models[[2]],
-                                                          outputs$REW[[1]],
-                                                          alpha_momdp,
-                                                          disc = gamma,
-                                                          optimal_policy = TRUE))$data_output$value[params$horizon]
+    best_value_stat <- 0
+    best_t_stat <- 0
 
-    # average stat value
-    value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+    # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
+    time_steps <- c(1, round(params$horizon/2), params$horizon)
+    # time_steps <- seq(params$horizon)
+    for (t in time_steps){
+      # for (t in seq(params$horizon)){
+      params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
+      params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
 
+      reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+      outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
+                                    params_stationary$initial_belief,
+                                    reward_POMDP,
+                                    solve_hmMDP,
+                                    paste0(file_name,"_stationary_",t, ".pomdpx"),
+                                    paste0(file_name,"_stationary_",t, ".policyx"))
+
+      alpha_momdp <- read_policyx2(paste0(file_name,"_stationary_",t, ".policyx")) #stationary strategy
+
+      # ## improve with Peron lower bound ####
+      # models <- list()
+      # models[[1]] <- transition_function_states(params_stationary)
+      # params_fail_stationary <- params_stationary
+      # params_fail_stationary$pdev <- 0
+      # params_fail_stationary$p_idle_idle <- 1
+      # models[[2]] <- transition_function_states(params_fail_stationary)
+      #
+      # alpha_momdp <-perron_lower_bound(models,
+      #                                 reward_POMDP,
+      #                                 gamma,
+      #                                 alphas=alpha_momdp)
+      #apply the stationary strategy to the non-stationary problem success
+      value_stat_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
+                                                                 Tmax=Tmax_SIM,
+                                                                 # Tmax=params$horizon,
+                                                                 initial_belief_state_tech=params$initial_belief,
+                                                                 transition_tech=outputs$TR_FUNCTION,
+                                                                 true_model_tech=outputs$TR_FUNCTION[[1]],#success
+                                                                 reward_non_stat=outputs$REW[[1]],
+                                                                 alpha_momdp=alpha_momdp,
+                                                                 disc = gamma,
+                                                                 non_stationary_strategy = FALSE,
+                                                                 average=TRUE,
+                                                                 n_it = 5000)#[params$horizon+1]
+      value_stat_success <- value_stat_success$`mean(value)`[Tmax_SIM+1]
+      #apply the stationary strategy to the non-stationary problem failure
+      trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+                                                               Tmax=Tmax_SIM,
+                                                               # Tmax=params$horizon,
+                                                               initial_belief_state_tech=params$initial_belief,
+                                                               transition_tech=outputs$TR_FUNCTION,
+                                                               true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+                                                               reward_non_stat=outputs$REW[[1]],
+                                                               alpha_momdp=alpha_momdp,
+                                                               disc = gamma,
+                                                               non_stationary_strategy = FALSE))
+      value_stat_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
+      # average stat value
+      value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+
+      #compare
+      if (value_stat>best_value_stat){
+        best_value_stat <- value_stat
+        best_t_stat <- t
+
+        #Tmax stationary strategy
+        actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
+        if (sum(actions)>0){
+          r <- rle(actions)
+          Tmax_stat <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+          start_stat <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
+        } else {
+          Tmax_stat <- 0 # Lengths of consecutive 1s
+          start_stat <- 0 # Start positions of consecutive 1s
+        }
+      }
+    }
+    #return the value of information
+    result$value_stat=value_stat
+    result$best_t_stat=best_t_stat
+    result$Tmax_stat=Tmax_stat
+    result$start_stat=start_stat
+  }
+  return(result)
+
+}
+
+voi_model_uncertainty_rewards <- function(params,
+                                       write_hmMDP,
+                                       solve_hmMDP,
+                                       file_name){
+  #####################################################
+  #calculate value of model uncertainty in rewards ####
+  #####################################################
+
+  #solve the complete non-stationary problem
+  outputs <- solving_uncertain_nonstat_rewards_POMDP(params,
+                                                     write_hmMDP,
+                                                     solve_hmMDP,
+                                                     paste0(file_name, ".pomdpx"),
+                                                     paste0(file_name, ".policyx"))
+
+  alpha_non_stat <- read_policyx2(paste0(file_name, ".policyx"))
+  #get optimal value
+  value_non_stat <- interp_policy2(params$initial_belief,
+                                   obs = 1,
+                                   alpha = alpha_non_stat$vectors,
+                                   alpha_action = alpha_non_stat$action,
+                                   alpha_obs = alpha_non_stat$obs,
+                                   alpha_index = alpha_non_stat$index)[[1]]
+
+  trajectory_non_stat_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+                                                                    Tmax=Tmax_SIM,
+                                                                    initial_belief_state_tech=params$initial_belief,
+                                                                    transition_tech=outputs$TR_FUNCTION,
+                                                                    true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+                                                                    reward_non_stat=outputs$REW[[1]],
+                                                                    alpha_momdp=alpha_non_stat,
+                                                                    disc = gamma,
+                                                                    non_stationary_strategy = TRUE,
+                                                                    alpha_indexes = TRUE))
+
+  #get the optimal Tmax
+  actions <- (trajectory_non_stat_failure$data_output$action[-(Tmax_SIM+1)]-1)
+  if (sum(actions)>0){
+    r <- rle(actions)
+    Tmax <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+    start <- cumsum(r$lengths)[r$values == 1] - Tmax   # Start positions of consecutive 1s
+    # if (length(start)>1){
+    #   return(0)
+    # }
+  } else {
+    Tmax <- 0 # Lengths of consecutive 1s
+    start <- 0 # Start positions of consecutive 1s
+  }
+
+  # for each reward function, solve the POMDP, and apply the strategy to the alternative functions
+  value_performance_best <-0
+  for (r_index in seq_along(outputs$REW)){
+    values_performance_index <- c()
+
+    #solve POMDP without uncertainty in non-stationary rewards
+    solving_POMDP_non_stationary_rewards(outputs$TR_FUNCTION,
+                                         outputs$TR_FUNCTION_TIMES,
+                                         params$initial_belief,
+                                         outputs$REW[[r_index]],
+                                         write_hmMDP,
+                                         solve_hmMDP,
+                                         paste0(file_name,"_reward_",r_index, ".pomdpx"),
+                                         paste0(file_name,"_reward_",r_index, ".policyx"))
+
+
+    alpha_momdp <- read_policyx2(paste0(file_name,"_reward_",r_index, ".policyx")) #non-stationary strategy
+
+    opt_value <- interp_policy2(params$initial_belief,
+                                obs = 1,
+                                alpha = alpha_non_stat$vectors,
+                                alpha_action = alpha_non_stat$action,
+                                alpha_obs = alpha_non_stat$obs,
+                                alpha_index = alpha_non_stat$index)[[1]]
+
+    values_performance_index <- c(values_performance_index,opt_value)
+
+    for (r_index_true in seq_along(outputs$REW)){
+      if (r_index_true != r_index){
+        #apply the strategy to the other possible reward functions
+
+        #apply the stationary strategy to the non-stationary problem success
+        value_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
+                                                             Tmax=Tmax_SIM,
+                                                             initial_belief_state_tech=params$initial_belief,
+                                                             transition_tech=outputs$TR_FUNCTION,
+                                                             true_model_tech=outputs$TR_FUNCTION[[1]],#success
+                                                             reward_non_stat=outputs$REW[[r_index_true]],
+                                                             alpha_momdp=alpha_momdp,
+                                                             disc = gamma,
+                                                             non_stationary_strategy = TRUE,
+                                                             average=TRUE,
+                                                             n_it = 5000)
+        value_success <- value_success$`mean(value)`[Tmax_SIM+1]
+        #value failure
+        trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+                                                                 Tmax=Tmax_SIM,
+                                                                 initial_belief_state_tech=params$initial_belief,
+                                                                 transition_tech=outputs$TR_FUNCTION,
+                                                                 true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+                                                                 reward_non_stat=outputs$REW[[r_index_true]],
+                                                                 alpha_momdp=alpha_momdp,
+                                                                 disc = gamma,
+                                                                 non_stationary_strategy = TRUE))
+        value_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
+
+        #value application
+        value_true_model <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+
+        #store value in values_performance_index
+        values_performance_index <- c(values_performance_index, value_true_model)
+      }
+    }
+
+    values_performance <- mean(values_performance_index)
     #compare
-    if (value_stat>best_value_stat){
-      best_value_stat <- value_stat
-      best_t_stat <- t
+    if (values_performance>value_performance_best){
+      value_performance_best <- values_performance
+      best_reward <- r_index
+
+      #Tmax stationary strategy
+      actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
+      if (sum(actions)>0){
+        r <- rle(actions)
+        Tmax_rew <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+        start_rew <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
+      } else {
+        Tmax_rew <- 0 # Lengths of consecutive 1s
+        start_rew <- 0 # Start positions of consecutive 1s
+      }
     }
   }
 
   #return the value of information
-  return(list(opt=value_opt,
-              stat=max_values_VOI,
-              policy_sol=policy_sol,
-              PR=PR,
-              REW=REW))
-}
-
-plot_voi_result <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  plot <- df %>%
-    mutate(EVPI = (opt - stat)*100 / opt) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = EVPI
-    )) +
-    # geom_raster(interpolate = TRUE) +
-    # geom_point() +
-    geom_tile() +
-    scale_fill_gradient(low = "lightblue", high = "blue") +
-    labs(
-      fill = TeX("Value of modelling\nnon-stationary rewards (%)")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-  return(plot)
-}
-
-plot_Tmax_opt <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  plot <- df %>%
-    mutate(Tmax_diff = (Tmax_opt)) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = Tmax_diff
-    )) +
-    geom_raster() +
-    scale_fill_gradient(low = "white", high = "red") +
-    labs(
-      fill = TeX("Optimal $T_{max}$")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-  return(plot)
-}
-
-plot_Tmax_stat <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  plot <- df %>%
-    mutate(Tmax_diff = (Tmax_stat)) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = Tmax_diff
-    )) +
-    geom_raster() +
-    scale_fill_gradient(low = "white", high = "red") +
-    labs(
-      fill = TeX("$T_{max}$ stationary")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-}
-
-plot_Tmax_diff <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  plot <- df %>%
-    mutate(Tmax_diff = (Tmax_opt - Tmax_stat)) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = Tmax_diff
-    )) +
-    geom_raster() +
-    scale_fill_gradient(low = "white", high = "red") +
-    labs(
-      fill = TeX("Difference between $T_{max}$")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-  return(plot)
-}
-
-plot_start_invest_result <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  plot <- df %>%
-    mutate(start_diff = (Tmax_opt_start)) %>%
-    # mutate(start_diff = (Tmax_opt_start-Tmax_stat_start)) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = start_diff
-    )) +
-    # geom_raster(interpolate = TRUE) +
-    geom_raster() +
-    scale_fill_gradient(low = "white", high = "red") +
-    labs(
-      # x = TeX("Slope change baseline rewards $\\alpha$"),
-      # y = TeX("Slope change deployment rewards $\\beta$"),
-      fill = TeX("Difference between\nstart times")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-  return(plot)
-}
-
-plot_value_result <- function(df,params) {
-  # grab first two column names dynamically
-  xcol <- names(df)[1]
-  ycol <- names(df)[2]
-
-  df %>%
-    mutate(rEVPI = (V_opt-V_stat)*100/V_opt) %>%
-    ggplot(aes(
-      x = abs(.data[[xcol]]),
-      y = abs(.data[[ycol]]),
-      fill = rEVPI
-    )) +
-    # geom_raster(interpolate = TRUE) +
-    geom_raster() +
-    scale_fill_gradient(low = "white", high = "red") +
-    labs(
-      # x = TeX("Slope change baseline rewards $\\alpha$"),
-      # y = TeX("Slope change deployment rewards $\\beta$"),
-      fill = TeX("rEVPI (%)")
-    )
-  if (params$log_scale_x){
-    plot <- plot+
-      scale_x_log10()
-  }
-
-  if (params$log_scale_y){
-    plot <- plot+
-      scale_y_log10()
-  }
-  return(plot)
+  return(data.frame(value_non_stat=value_non_stat,
+                    Tmax=Tmax,
+                    start=start,
+                    value_performance_best=value_performance_best,
+                    best_reward=best_reward,
+                    Tmax_rew=Tmax_rew,
+                    start_rew=start_rew))
 }

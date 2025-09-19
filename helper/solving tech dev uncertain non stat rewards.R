@@ -46,6 +46,7 @@ solving_uncertain_nonstat_rewards_POMDP <- function(params,
   B_PAR_REW <- rep(1, length(TR_FUNCTION_REW))/length(TR_FUNCTION_REW) #uniform prior on reward trajectories
 
   if (write_hmMDP){
+    if (length(REW)>1){
     write_hmMDP_uncertain_nonstat_rewards(TR_FUNCTION,
                                           TR_FUNCTION_REW,
                                           TR_FUNCTION_TIMES,
@@ -57,6 +58,16 @@ solving_uncertain_nonstat_rewards_POMDP <- function(params,
                                           REW,
                                           GAMMA=gamma,
                                           FILE=file_pomdpx_index)
+    } else {
+      write_hmMDP_non_stationary_rewards(TR_FUNCTION,
+                                        TR_FUNCTION_TIMES,
+                                        B_FULL,
+                                        B_FULL_TIMES,
+                                        B_PAR,
+                                        REW[[1]],
+                                        GAMMA=gamma,
+                                        FILE=file_pomdpx_index)
+    }
   }
 
 

@@ -38,12 +38,12 @@ interp_policy2 <- function (belief_state_momdp, obs, alpha, alpha_action, alpha_
   alpha_action2 <- alpha_action[id]
   alpha_index2 <- alpha_index[id]
   a <- belief_state_momdp %*% alpha2
-  if (sum(a == 0) == length(a)) {
-    output <- list(0, 1)
-  }
-  else {
-    output <- list(max(a), alpha_action2[which.max(a)], alpha_index2[which.max(a)])
-  }
+  # if (sum(a == 0) == length(a)) {
+  #   output <- list(0, 1)
+  # }
+  # else {
+  output <- list(max(a), alpha_action2[which.max(a)], alpha_index2[which.max(a)])
+  # }
   output
 }
 

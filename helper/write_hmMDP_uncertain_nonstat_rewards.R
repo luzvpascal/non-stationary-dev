@@ -139,8 +139,8 @@ write_hmMDP_uncertain_nonstat_rewards <- function(TR_FUNCTION,
                           , sep = "")
 
   header <- paste0(header,
-                   header_time,
                    header_state_rew,
+                   header_time,
                    header_state,
                    header_model_rew,
                    header_model,
