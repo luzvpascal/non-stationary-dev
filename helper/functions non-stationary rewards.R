@@ -397,10 +397,75 @@ get_Tmax <- function(params,
     start <- 0 # Start positions of consecutive 1s
   }
   return(list(result=data.frame(value_non_stat=value_non_stat,
-                    Tmax=Tmax,
-                    start=start),
+                    Tmax=sum(Tmax),
+                    start=min(start)),
               outputs=outputs))
 
+}
+
+get_Tmax_stationary <- function(params_stationary,
+                                reward_POMDP,
+                                outputs,
+                                solve_hmMDP,
+                                file_name_pomdpx,
+                                file_name_policyx){
+  #params_stationary list object of stationary params
+  #reward_POMDP: reward function of the stationarty pb
+  #outputs: parameters of the true non-stationarty pb (outputs of solving_uncertain_nonstat_rewards_POMDP)
+  # solve_hmMDP: bool
+  # file_name_pomdpx: file name
+  # file_name_policyx: file name
+
+  outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
+                                params_stationary$initial_belief,
+                                reward_POMDP,
+                                solve_hmMDP,
+                                file_name_pomdpx,
+                                file_name_policyx)
+
+  alpha_momdp <- read_policyx2(file_name_policyx) #stationary strategy
+
+  #apply the stationary strategy to the non-stationary problem success
+  value_stat_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
+                                                             Tmax=Tmax_SIM,
+                                                             initial_belief_state_tech=params$initial_belief,
+                                                             transition_tech=outputs$TR_FUNCTION,
+                                                             true_model_tech=outputs$TR_FUNCTION[[1]],#success
+                                                             reward_non_stat=outputs$REW[[1]],
+                                                             alpha_momdp=alpha_momdp,
+                                                             disc = gamma,
+                                                             non_stationary_strategy = FALSE,
+                                                             average=TRUE,
+                                                             n_it = 5000)
+  value_stat_success <- value_stat_success$`mean(value)`[Tmax_SIM+1]
+  #apply the stationary strategy to the non-stationary problem failure
+  trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+                                                           Tmax=Tmax_SIM,
+                                                           initial_belief_state_tech=params$initial_belief,
+                                                           transition_tech=outputs$TR_FUNCTION,
+                                                           true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+                                                           reward_non_stat=outputs$REW[[1]],
+                                                           alpha_momdp=alpha_momdp,
+                                                           disc = gamma,
+                                                           non_stationary_strategy = FALSE))
+  value_stat_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
+  # average stat value
+  value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+
+  ## get the Tmax ####
+  #Tmax stationary strategy
+  actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
+  if (sum(actions)>0){
+    r <- rle(actions)
+    Tmax <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+    start <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
+  } else {
+    Tmax <- 0 # Lengths of consecutive 1s
+    start <- 0 # Start positions of consecutive 1s
+  }
+  return(list(value_stat=value_stat,
+              Tmax=Tmax,
+              start=start))
 }
 
 voi_non_stationary_rewards <- function(params,
@@ -439,80 +504,84 @@ voi_non_stationary_rewards <- function(params,
     # time_steps <- c(1, round(params$horizon/2), params$horizon)
     # time_steps <- seq(params$horizon)
     time_steps <- c(seq(1, params$horizon,10), params$horizon)
+    all_names <- c(time_steps, "avg","integral")
+
+    Tmax_names <- paste0("Tmax_t_", all_names)
+    start_names <- paste0("start_t_", all_names)
+
+    Tmax_values <- rep(0, length(all_names))
+    start_values <- rep(0, length(all_names))
 
     for (t in time_steps){
       params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
       params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
 
       reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
-      outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
-                                    params_stationary$initial_belief,
-                                    reward_POMDP,
-                                    solve_hmMDP,
-                                    paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
-                                    paste0(file_name_policyx,"_stationary_",t, ".policyx"))
-
-      alpha_momdp <- read_policyx2(paste0(file_name_policyx,"_stationary_",t, ".policyx")) #stationary strategy
-
-      # ## improve with Peron lower bound ####
-      # models <- list()
-      # models[[1]] <- transition_function_states(params_stationary)
-      # params_fail_stationary <- params_stationary
-      # params_fail_stationary$pdev <- 0
-      # params_fail_stationary$p_idle_idle <- 1
-      # models[[2]] <- transition_function_states(params_fail_stationary)
+      # outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
+      #                               params_stationary$initial_belief,
+      #                               reward_POMDP,
+      #                               solve_hmMDP,
+      #                               paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
+      #                               paste0(file_name_policyx,"_stationary_",t, ".policyx"))
       #
-      # alpha_momdp <-perron_lower_bound(models,
-      #                                 reward_POMDP,
-      #                                 gamma,
-      #                                 alphas=alpha_momdp)
-      #apply the stationary strategy to the non-stationary problem success
-      value_stat_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
-                                                                 Tmax=Tmax_SIM,
-                                                                 # Tmax=params$horizon,
-                                                                 initial_belief_state_tech=params$initial_belief,
-                                                                 transition_tech=outputs$TR_FUNCTION,
-                                                                 true_model_tech=outputs$TR_FUNCTION[[1]],#success
-                                                                 reward_non_stat=outputs$REW[[1]],
-                                                                 alpha_momdp=alpha_momdp,
-                                                                 disc = gamma,
-                                                                 non_stationary_strategy = FALSE,
-                                                                 average=TRUE,
-                                                                 n_it = 5000)#[params$horizon+1]
-      value_stat_success <- value_stat_success$`mean(value)`[Tmax_SIM+1]
-      #apply the stationary strategy to the non-stationary problem failure
-      trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
-                                                               Tmax=Tmax_SIM,
-                                                               # Tmax=params$horizon,
-                                                               initial_belief_state_tech=params$initial_belief,
-                                                               transition_tech=outputs$TR_FUNCTION,
-                                                               true_model_tech=outputs$TR_FUNCTION[[2]],#failure
-                                                               reward_non_stat=outputs$REW[[1]],
-                                                               alpha_momdp=alpha_momdp,
-                                                               disc = gamma,
-                                                               non_stationary_strategy = FALSE))
-      value_stat_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
-      # average stat value
-      value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+      # alpha_momdp <- read_policyx2(paste0(file_name_policyx,"_stationary_",t, ".policyx")) #stationary strategy
+      #
+      # #apply the stationary strategy to the non-stationary problem success
+      # value_stat_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
+      #                                                            Tmax=Tmax_SIM,
+      #                                                            # Tmax=params$horizon,
+      #                                                            initial_belief_state_tech=params$initial_belief,
+      #                                                            transition_tech=outputs$TR_FUNCTION,
+      #                                                            true_model_tech=outputs$TR_FUNCTION[[1]],#success
+      #                                                            reward_non_stat=outputs$REW[[1]],
+      #                                                            alpha_momdp=alpha_momdp,
+      #                                                            disc = gamma,
+      #                                                            non_stationary_strategy = FALSE,
+      #                                                            average=TRUE,
+      #                                                            n_it = 5000)
+      # value_stat_success <- value_stat_success$`mean(value)`[Tmax_SIM+1]
+      # #apply the stationary strategy to the non-stationary problem failure
+      # trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
+      #                                                          Tmax=Tmax_SIM,
+      #                                                          initial_belief_state_tech=params$initial_belief,
+      #                                                          transition_tech=outputs$TR_FUNCTION,
+      #                                                          true_model_tech=outputs$TR_FUNCTION[[2]],#failure
+      #                                                          reward_non_stat=outputs$REW[[1]],
+      #                                                          alpha_momdp=alpha_momdp,
+      #                                                          disc = gamma,
+      #                                                          non_stationary_strategy = FALSE))
+      # value_stat_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
+      # # average stat value
+      # value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
+      #
+      # ## get the Tmax ####
+      # #Tmax stationary strategy
+      # actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
+      # if (sum(actions)>0){
+      #   r <- rle(actions)
+      #   Tmax_values[t] <- r$lengths[r$values == 1] # Lengths of consecutive 1s
+      #   start_values[t] <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
+      # } else {
+      #   Tmax_values[t] <- 0 # Lengths of consecutive 1s
+      #   start_values[t] <- 0 # Start positions of consecutive 1s
+      # }
 
+      stationary_output <- get_Tmax_stationary(params_stationary,
+                                      reward_POMDP,
+                                      outputs,
+                                      solve_hmMDP,
+                                      paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
+                                      paste0(file_name_policyx,"_stationary_",t, ".policyx"))
       #compare
       if (value_stat>best_value_stat){
         best_value_stat <- value_stat
         best_t_stat <- t
-
-        #Tmax stationary strategy
-        actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
-        if (sum(actions)>0){
-          r <- rle(actions)
-          Tmax_stat <- r$lengths[r$values == 1] # Lengths of consecutive 1s
-          start_stat <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
-        } else {
-          Tmax_stat <- 0 # Lengths of consecutive 1s
-          start_stat <- 0 # Start positions of consecutive 1s
-        }
       }
     }
+
+
     #return the value of information
+    data_Tmax <-
     result$value_stat=value_stat
     result$best_t_stat=best_t_stat
     result$Tmax_stat=Tmax_stat

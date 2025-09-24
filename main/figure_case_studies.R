@@ -13,15 +13,17 @@ copy_plot_params <- function(params) {
 data_plots <- data.frame()
 results <- data.frame()
 plots <- list()
-# write_hmMDP <- FALSE
-# solve_hmMDP <- FALSE
-# run_sims <- FALSE
+plots_deltaR <- list()
+write_hmMDP <- FALSE
+solve_hmMDP <- FALSE
+run_sims <- FALSE
 y_Tmax <- 0.2
-write_hmMDP <- TRUE
-solve_hmMDP <- TRUE
-run_sims <- TRUE
+# write_hmMDP <- TRUE
+# solve_hmMDP <- TRUE
+# run_sims <- TRUE
+
 start <- Sys.time()
-for (index_case_study in seq_along(CASE_STUDIES)){
+for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
 
   case_study_name <- names(CASE_STUDIES)[index_case_study]
   params_case_study <- CASE_STUDIES[[index_case_study]]
@@ -39,7 +41,7 @@ for (index_case_study in seq_along(CASE_STUDIES)){
 
   #extract rewards trajectories
   df <- extract_trajectories(outputs$REW, params$horizon, case_study_name)
-  df <- df %>%
+  df_long <- df %>%
     pivot_longer(!c(time, case_study), names_to = "Reward",
                  values_to = "value")
 
@@ -77,7 +79,7 @@ for (index_case_study in seq_along(CASE_STUDIES)){
                    results_now)
 
   ## plots ####
-  plot <- df %>%
+  plot <- df_long %>%
     filter(Reward != "Rbau_2") %>%
     ggplot(aes(x = time, y = value, group = Reward, color = Reward,
                linetype=Reward)) +
@@ -108,26 +110,77 @@ for (index_case_study in seq_along(CASE_STUDIES)){
       hjust = 0,
       col = "black"
     ) +
-    lims(y=c(-0.35,1.05))+
     labs(x="Time",
          y="Reward value",
          title = params$label)+
     theme(title = element_text(size=10))+
     scale_y_continuous(breaks = c(-y_Tmax, 0, 0.5,1),
-                       labels = c("Tmax", "0.0","0.5","1.0"))
+                       labels = c("Tmax", "0.0","0.5","1.0"),
+                       limits = c(-y_Tmax-0.05, 1.05))
+
+  ## plots delta R ####
+  df_deltaR_plot <- df %>%
+    mutate(deltaR=Rdep_1-Rbau_1) %>%
+    pivot_longer(!c(time, case_study), names_to = "Reward",
+                 values_to = "value") %>%
+    filter(Reward=="deltaR") %>%
+    ggplot(aes(x = time, y = value, group = Reward, color = Reward,
+               linetype=Reward)) +
+    scale_color_manual(values=c("purple",
+                                "darkgreen",
+                                "darkgreen"))+
+    scale_linetype_manual(values = c("solid",
+                                     "dashed",
+                                     "dotted"
+    ))+
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0,linetype="dotted")+
+    geom_hline(yintercept = -1.1)+
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    # Add Tmax as a horizontal segment at y = 1.2
+    geom_segment(
+      data = results_now,
+      aes(x = start_time, xend = start_time + Tmax-1,
+          y = -1-y_Tmax, yend = -1-y_Tmax),
+      inherit.aes = FALSE,  # prevents inheriting aes from df
+      linewidth = 4, col = "darkblue"
+    ) +
+    geom_text(
+      data = results_now,
+      aes(x = start_time + Tmax, y = -1-y_Tmax, label = Tmax),
+      inherit.aes = FALSE,
+      # size=2,
+      hjust = 0,
+      col = "black"
+    ) +
+    labs(x="Time",
+         y=TeX("Difference in rewards $(\\Delta R_t = R_{dep,t}-R_{BAU,t})$"),
+         title = params$label)+
+    theme(title = element_text(size=10))+
+    scale_y_continuous(breaks = c(-1-y_Tmax,-1,-0.5, 0, 0.5,1),
+                       labels = c("Tmax", "-1.0", "-0.5","0.0","0.5","1.0"),
+                       limits = c(-1-y_Tmax-0.05, 1.05))
 
   plots[[index_case_study]] <- plot
+  plots_deltaR[[index_case_study]] <- df_deltaR_plot
 
 }
 
 end <- Sys.time()
 print(end-start)
-main_plot <- ggarrange(plots[[1]],
+main_plot <- ggarrange(
+          plots[[1]],
           plots[[2]],
           plots[[3]],
-          plots[[4]],
-          plots[[5]],
-          plots[[6]],
+
+          plots_deltaR[[1]],
+          plots_deltaR[[2]],
+          plots_deltaR[[3]],
+
+          # plots[[4]],
+          # plots[[5]],
+          # plots[[6]],
           ncol=3,
           nrow=2,
           common.legend = TRUE)

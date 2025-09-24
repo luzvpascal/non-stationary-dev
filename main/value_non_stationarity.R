@@ -32,12 +32,6 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
                                          file_name_policyx,
                                          run_voi)
 
-    if (!is.data.frame(output)){
-      print("buuuuuuug")
-      break
-    }
-
-
     ## extract reward trajectories
     REW <- reward_non_stationary_wrapper(params)
 
@@ -57,8 +51,9 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
                                  deltaR*gamma**time/(1-gamma),
                                  deltaR*gamma**time))%>%
       reframe(mean_val=mean(deltaR),
-              integral_gamma=sum(deltaR_gamma),
-              diff_max=max(deltaR)-min(deltaR))
+              integral_gamma=sum(deltaR_gamma)*(1-gamma),
+              diff_max=max(deltaR)-min(deltaR),
+              end_deltaR = deltaR[time == max(time)])
 
     ## results ####
     results_now <- merge(row,output)

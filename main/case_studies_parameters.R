@@ -89,7 +89,7 @@ PARAMS_C$log_scale_x = FALSE
 PARAMS_C$log_scale_y = FALSE
 PARAMS_C$type <- "linear"
 
-PARAMS_C$alpha_plot <- 0
+PARAMS_C$alpha_plot <- 0#-0.025
 PARAMS_C$beta_plot <- 0.025
 PARAMS_C$Rbau_plot <- 0.5
 PARAMS_C$Rdep_plot <- 0
