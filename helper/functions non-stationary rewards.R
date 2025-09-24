@@ -458,7 +458,7 @@ get_Tmax_stationary <- function(params_stationary,
   if (sum(actions)>0){
     r <- rle(actions)
     Tmax <- r$lengths[r$values == 1] # Lengths of consecutive 1s
-    start <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
+    start <- cumsum(r$lengths)[r$values == 1] - Tmax   # Start positions of consecutive 1s
   } else {
     Tmax <- 0 # Lengths of consecutive 1s
     start <- 0 # Start positions of consecutive 1s
@@ -506,65 +506,20 @@ voi_non_stationary_rewards <- function(params,
     time_steps <- c(seq(1, params$horizon,10), params$horizon)
     all_names <- c(time_steps, "avg","integral")
 
-    Tmax_names <- paste0("Tmax_t_", all_names)
-    start_names <- paste0("start_t_", all_names)
+    Tmax_names <- paste0("Tmax_", all_names)
+    start_names <- paste0("start_", all_names)
+    values_names <- paste0("value_", all_names)
 
     Tmax_values <- rep(0, length(all_names))
     start_values <- rep(0, length(all_names))
+    values <- rep(0, length(all_names))
 
+    #for all time steps####
     for (t in time_steps){
       params_stationary$Rbau <-  unique(unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 1), 1])))
       params_stationary$Rdep <-  (unname(sapply(outputs$REW, function(x) x[tuple_to_index(t, 2), 2])))
 
       reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
-      # outputs_stat <- solving_POMDP(params_stationary$p_idle_idle,
-      #                               params_stationary$initial_belief,
-      #                               reward_POMDP,
-      #                               solve_hmMDP,
-      #                               paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
-      #                               paste0(file_name_policyx,"_stationary_",t, ".policyx"))
-      #
-      # alpha_momdp <- read_policyx2(paste0(file_name_policyx,"_stationary_",t, ".policyx")) #stationary strategy
-      #
-      # #apply the stationary strategy to the non-stationary problem success
-      # value_stat_success <- sim_non_stationary_rewards_fixed_mdp(state_prior_tech=1,
-      #                                                            Tmax=Tmax_SIM,
-      #                                                            # Tmax=params$horizon,
-      #                                                            initial_belief_state_tech=params$initial_belief,
-      #                                                            transition_tech=outputs$TR_FUNCTION,
-      #                                                            true_model_tech=outputs$TR_FUNCTION[[1]],#success
-      #                                                            reward_non_stat=outputs$REW[[1]],
-      #                                                            alpha_momdp=alpha_momdp,
-      #                                                            disc = gamma,
-      #                                                            non_stationary_strategy = FALSE,
-      #                                                            average=TRUE,
-      #                                                            n_it = 5000)
-      # value_stat_success <- value_stat_success$`mean(value)`[Tmax_SIM+1]
-      # #apply the stationary strategy to the non-stationary problem failure
-      # trajectory_failure <- (trajectory_non_stationary_rewards(state_prior_tech=1,
-      #                                                          Tmax=Tmax_SIM,
-      #                                                          initial_belief_state_tech=params$initial_belief,
-      #                                                          transition_tech=outputs$TR_FUNCTION,
-      #                                                          true_model_tech=outputs$TR_FUNCTION[[2]],#failure
-      #                                                          reward_non_stat=outputs$REW[[1]],
-      #                                                          alpha_momdp=alpha_momdp,
-      #                                                          disc = gamma,
-      #                                                          non_stationary_strategy = FALSE))
-      # value_stat_failure <- trajectory_failure$data_output$value[Tmax_SIM+1]
-      # # average stat value
-      # value_stat <- sum(c(value_stat_success, value_stat_failure)*params$initial_belief)
-      #
-      # ## get the Tmax ####
-      # #Tmax stationary strategy
-      # actions <- (trajectory_failure$data_output$action[-(Tmax_SIM+1)]-1)
-      # if (sum(actions)>0){
-      #   r <- rle(actions)
-      #   Tmax_values[t] <- r$lengths[r$values == 1] # Lengths of consecutive 1s
-      #   start_values[t] <- cumsum(r$lengths)[r$values == 1] - Tmax_stat   # Start positions of consecutive 1s
-      # } else {
-      #   Tmax_values[t] <- 0 # Lengths of consecutive 1s
-      #   start_values[t] <- 0 # Start positions of consecutive 1s
-      # }
 
       stationary_output <- get_Tmax_stationary(params_stationary,
                                       reward_POMDP,
@@ -573,19 +528,128 @@ voi_non_stationary_rewards <- function(params,
                                       paste0(file_name_pomdpx,"_stationary_",t, ".pomdpx"),
                                       paste0(file_name_policyx,"_stationary_",t, ".policyx"))
       #compare
-      if (value_stat>best_value_stat){
-        best_value_stat <- value_stat
+      Tmax_values[which(t==time_steps)] <- stationary_output$Tmax
+      start_values[which(t==time_steps)] <- stationary_output$start
+      values[which(t==time_steps)] <- stationary_output$value_stat
+
+      if (stationary_output$value_stat>best_value_stat){
+        best_value_stat <- stationary_output$value_stat
         best_t_stat <- t
+        Tmax_stat <- stationary_output$Tmax
+        start_stat <- stationary_output$start
       }
     }
 
+    #extract trajectories
+    df <- extract_trajectories(outputs$REW, params$horizon, case_study_name)
+    df_last <- df %>%
+      filter(time==max(time))%>%
+      reframe(time=time+1,
+              case_study =case_study ,
+              Rbau_1 = Rbau_1,
+              Rdep_1=Rdep_1)
+
+    df <- rbind(df,df_last)
+
+    df <- df %>%
+      mutate(deltaR=Rdep_1-Rbau_1,
+             deltaR_gamma=ifelse(time==max(time),
+                                 deltaR*gamma**time/(1-gamma),
+                                 deltaR*gamma**time))%>%
+      reframe(mean_deltaR=mean(deltaR),
+              integral_gamma=sum(deltaR_gamma)*(1-gamma),
+              diff_max=max(deltaR)-min(deltaR),
+              end_deltaR = deltaR[time == max(time)])
+
+    #solve POMDP with average reward ####
+    params_stationary$Rbau <- 0
+    params_stationary$Rdep <- df$mean_deltaR
+
+    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+
+    stationary_output <- get_Tmax_stationary(params_stationary,
+                                             reward_POMDP,
+                                             outputs,
+                                             solve_hmMDP,
+                                             paste0(file_name_pomdpx,"_average.pomdpx"),
+                                             paste0(file_name_policyx,"_average.policyx"))
+    #compare
+    Tmax_values[length(time_steps)+1] <- stationary_output$Tmax
+    start_values[length(time_steps)+1] <- stationary_output$start
+    values[length(time_steps)+1] <- stationary_output$value_stat
+
+    if (stationary_output$value_stat>best_value_stat){
+      best_value_stat <- stationary_output$value_stat
+      best_t_stat <- t
+      Tmax_stat <- stationary_output$Tmax
+      start_stat <- stationary_output$start
+    }
+    #for integral annualized reward ####
+    params_stationary$Rbau <- 0
+    params_stationary$Rdep <- df$integral_gamma
+
+    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+
+    stationary_output <- get_Tmax_stationary(params_stationary,
+                                             reward_POMDP,
+                                             outputs,
+                                             solve_hmMDP,
+                                             paste0(file_name_pomdpx,"_integral.pomdpx"),
+                                             paste0(file_name_policyx,"_integral.policyx"))
+    #compare
+    Tmax_values[length(time_steps)+2] <- stationary_output$Tmax
+    start_values[length(time_steps)+2] <- stationary_output$start
+    values[length(time_steps)+2] <- stationary_output$value_stat
+
+    if (stationary_output$value_stat>best_value_stat){
+      best_value_stat <- stationary_output$value_stat
+      best_t_stat <- t
+      Tmax_stat <- stationary_output$Tmax
+      start_stat <- stationary_output$start
+    }
 
     #return the value of information
-    data_Tmax <-
     result$value_stat=value_stat
     result$best_t_stat=best_t_stat
     result$Tmax_stat=Tmax_stat
     result$start_stat=start_stat
+
+    data_Tmax <-data.frame(name=c(Tmax_names,start_names,values_names),
+                           value=c(Tmax_values,start_values,values))
+
+    data_Tmax <- data_Tmax %>%
+      pivot_wider()
+
+    result <- merge(result, df)
+    result <- merge(result, data_Tmax)
+
+    ## analytical approximation ####
+    bIS_mean <- belief_invest_to_surrender(params$Cdev,
+                                      params$p_idle_idle,
+                                      0,
+                                      result$mean_deltaR,
+                                      gamma
+    )
+
+    Tmax_mean_an <- max_years(params$initial_belief[1],
+                         params$p_idle_idle,
+                         bIS_mean)
+
+    result$Tmax_mean_an <- Tmax_mean_an
+
+    ## analytical approximation ####
+    bIS_integral <- belief_invest_to_surrender(params$Cdev,
+                                           params$p_idle_idle,
+                                           0,
+                                           result$integral_gamma,
+                                           gamma
+    )
+
+    Tmax_integral_an <- max_years(params$initial_belief[1],
+                              params$p_idle_idle,
+                              bIS_integral)
+
+    result$Tmax_integral_an <- Tmax_integral_an
   }
   return(result)
 

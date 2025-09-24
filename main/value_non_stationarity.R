@@ -31,33 +31,8 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
                                          file_name_pomdpx,
                                          file_name_policyx,
                                          run_voi)
-
-    ## extract reward trajectories
-    REW <- reward_non_stationary_wrapper(params)
-
-    df <- extract_trajectories(REW, params$horizon, case_study_name)
-    df_last <- df %>%
-      filter(time==max(time))%>%
-      reframe(time=time+1,
-              case_study =case_study ,
-              Rbau_1 = Rbau_1,
-              Rdep_1=Rdep_1)
-
-    df <- rbind(df,df_last)
-
-    df <- df %>%
-      mutate(deltaR=Rdep_1-Rbau_1,
-             deltaR_gamma=ifelse(time==max(time),
-                                 deltaR*gamma**time/(1-gamma),
-                                 deltaR*gamma**time))%>%
-      reframe(mean_val=mean(deltaR),
-              integral_gamma=sum(deltaR_gamma)*(1-gamma),
-              diff_max=max(deltaR)-min(deltaR),
-              end_deltaR = deltaR[time == max(time)])
-
     ## results ####
     results_now <- merge(row,output)
-    results_now <- merge(results_now, df)
     results_now$case_study = case_study_name
 
     results <- rbind(results,
