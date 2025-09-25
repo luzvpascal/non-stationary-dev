@@ -46,7 +46,7 @@ PARAMS_B$case_studies = expand.grid(
   Rdep = seq(0.2, 1, 0.2)
 )
 PARAMS_B$case_studies <- PARAMS_B$case_studies %>%
-  filter(Rbau<Rdep)%>%
+  filter(Rbau<=Rdep)%>%
   filter(!(beta==0 & alpha==0))
 
 PARAMS_B$N_case_studies = nrow(PARAMS_B$case_studies)
