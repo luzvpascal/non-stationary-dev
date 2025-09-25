@@ -609,7 +609,7 @@ voi_non_stationary_rewards <- function(params,
     }
 
     #return the value of information
-    result$value_stat=value_stat
+    result$value_stat=best_value_stat
     result$best_t_stat=best_t_stat
     result$Tmax_stat=Tmax_stat
     result$start_stat=start_stat
