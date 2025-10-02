@@ -15,8 +15,7 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   results_case_study <- params_case_study$case_studies
   params_voi_names <- names(results_case_study)
 
-  for (k in seq(2)){
-  # for (k in seq(params_case_study$N_case_studies)){
+  for (k in seq(params_case_study$N_case_studies)){
     print(k)
     params <- params_case_study
     row <- results_case_study[k,]
