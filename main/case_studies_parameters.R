@@ -40,8 +40,9 @@ PARAMS_B$p_idle_idle = p_idle_idle
 PARAMS_B$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(-10^seq(-1, -3),0)
+# varying_vals <- c(-10^seq(-1, -3),0)
 # varying_vals <- unique(sort(c(varying_vals,5*varying_vals)))
+varying_vals <- seq(0,1,0.2)/50
 varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
 
 PARAMS_B$case_studies = expand.grid(
@@ -50,6 +51,13 @@ PARAMS_B$case_studies = expand.grid(
   Rbau = seq(0, 1, 0.2),
   Rdep = seq(0, 1, 0.2)
 )
+PARAMS_B$case_studies <-PARAMS_B$case_studies %>%
+  filter(!(Rdep==0 & beta<=0),
+         !(Rdep==1 & beta>0),
+         !(Rbau==0 & alpha<0),
+         !(Rbau==1 & alpha>0),
+         !((Rdep<=Rbau) & (beta<=alpha))
+  )
 
 PARAMS_B$N_case_studies = nrow(PARAMS_B$case_studies)
 
@@ -108,7 +116,7 @@ varying_vals <- c(10^seq(-1, -3),0)
 PARAMS_C$case_studies = expand.grid(
   alpha = -varying_vals,
   beta = varying_vals,
-  Rbau = seq(0.2, 1, 0.2),
+  Rbau = seq(0, 1, 0.2),
   Rdep = seq(0, 1, 0.2)
 )
 PARAMS_C$case_studies <- PARAMS_C$case_studies %>%
@@ -240,10 +248,11 @@ CASE_STUDIES <- list(
   "F"=PARAMS_F)
 
 CASE_STUDIES_VALUE_NON_STAT <- list(
-  "B_bis"=PARAMS_B_bis
+  # "B_bis"=PARAMS_B_bis
   # ,
   #
-  # "B"=PARAMS_B,
+  "B"=PARAMS_B
+  # ,
   # "C"=PARAMS_C
   )
 

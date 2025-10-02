@@ -31,6 +31,7 @@ results <- results %>%
 results %>%
   ggplot(aes(x=mean_deltaR+Cdev, y=Tmax))+
   geom_line(aes(y=Tmax_avg, linetype="Stationary solution\nwith average\nrewards"))+
+  # geom_line(aes(y=Tmax_mean_an, linetype = "Analytical approx."))+
   geom_point()+
   labs(x=TeX("Average net benefit $(R_{dep}-R_{BAU}+C_{dev})$"),
        y=TeX("Maximum number of investments $(T_{max})$"),
