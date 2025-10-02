@@ -1,4 +1,5 @@
-source("main/case_studies_parameters.R")
+# source("main/case_studies_parameters.R")
+source("main/case_studies_parameters2.R")
 copy_plot_params <- function(params) {
   plot_names <- grep("_plot$", names(params), value = TRUE)
 
@@ -14,13 +15,13 @@ data_plots <- data.frame()
 results <- data.frame()
 plots <- list()
 plots_deltaR <- list()
-write_hmMDP <- FALSE
-solve_hmMDP <- FALSE
-run_sims <- FALSE
 y_Tmax <- 0.2
-# write_hmMDP <- TRUE
-# solve_hmMDP <- TRUE
-# run_sims <- TRUE
+# write_hmMDP <- FALSE
+# solve_hmMDP <- FALSE
+# run_sims <- FALSE
+write_hmMDP <- TRUE
+solve_hmMDP <- TRUE
+run_sims <- TRUE
 
 start <- Sys.time()
 for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
@@ -95,13 +96,22 @@ for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
     theme_bw() +
     theme(legend.position = "bottom") +
     # Add Tmax as a horizontal segment at y = 1.2
-    geom_segment(
-      data = results_now,
-      aes(x = start_time, xend = start_time + Tmax-1,
-          y = -y_Tmax, yend = -y_Tmax),
+    geom_point(
+      data = sims %>% filter(time<=params$horizon),
+      aes(x = time, y = -y_Tmax, fill = as.factor(action)),
       inherit.aes = FALSE,  # prevents inheriting aes from df
-      linewidth = 4, col = "darkblue"
+      shape = 22,
+      size=3,
+      col="white"
     ) +
+    scale_fill_manual(values=c("white", "darkblue"))+
+    # geom_segment(
+    #   data = results_now,
+    #   aes(x = start_time, xend = start_time + Tmax-1,
+    #       y = -y_Tmax, yend = -y_Tmax),
+    #   inherit.aes = FALSE,  # prevents inheriting aes from df
+    #   linewidth = 4, col = "darkblue"
+    # ) +
     geom_text(
       data = results_now,
       aes(x = start_time + Tmax, y = -y_Tmax, label = Tmax),
@@ -120,7 +130,7 @@ for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
 
   ## plots delta R ####
   df_deltaR_plot <- df %>%
-    mutate(deltaR=Rdep_1-Rbau_1) %>%
+    mutate(deltaR=Rdep_1-Rbau_1+Cdev) %>%
     pivot_longer(!c(time, case_study), names_to = "Reward",
                  values_to = "value") %>%
     filter(Reward=="deltaR") %>%
@@ -139,13 +149,23 @@ for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
     theme_bw() +
     theme(legend.position = "bottom") +
     # Add Tmax as a horizontal segment at y = 1.2
-    geom_segment(
-      data = results_now,
-      aes(x = start_time, xend = start_time + Tmax-1,
-          y = -1-y_Tmax, yend = -1-y_Tmax),
+    # Add Tmax as a horizontal segment at y = 1.2
+    geom_point(
+      data = sims %>% filter(time<=params$horizon),
+      aes(x = time, y = -y_Tmax-1, fill = as.factor(action)),
       inherit.aes = FALSE,  # prevents inheriting aes from df
-      linewidth = 4, col = "darkblue"
+      shape = 22,
+      size=3,
+      col="white"
     ) +
+    scale_fill_manual(values=c("white", "darkblue"))+
+    # geom_segment(
+    #   data = results_now,
+    #   aes(x = start_time, xend = start_time + Tmax-1,
+    #       y = -1-y_Tmax, yend = -1-y_Tmax),
+    #   inherit.aes = FALSE,  # prevents inheriting aes from df
+    #   linewidth = 4, col = "darkblue"
+    # ) +
     geom_text(
       data = results_now,
       aes(x = start_time + Tmax, y = -1-y_Tmax, label = Tmax),
@@ -155,7 +175,7 @@ for (index_case_study in seq_along(CASE_STUDIES)[seq(3)]){
       col = "black"
     ) +
     labs(x="Time",
-         y=TeX("Difference in rewards $(\\Delta R_t = R_{dep,t}-R_{BAU,t})$"),
+         y=TeX("Net benefits $(\\Delta R_t = R_{dep,t}-R_{BAU,t}+C_{dev})$"),
          title = params$label)+
     theme(title = element_text(size=10))+
     scale_y_continuous(breaks = c(-1-y_Tmax,-1,-0.5, 0, 0.5,1),
@@ -185,3 +205,8 @@ main_plot <- ggarrange(
           nrow=2,
           common.legend = TRUE)
 main_plot
+#
+# ggsave("figures/casse_studies_Tmax2.svg",
+#        height = 20,
+#        width=30,
+#        units = "cm")

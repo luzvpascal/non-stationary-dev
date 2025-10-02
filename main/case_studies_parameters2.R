@@ -2,7 +2,7 @@ horizon <- 50
 pdev <- 0.1
 p_idle_idle <- 1-pdev
 initial_belief <-  c(0.5,0.5)
-Cdev <- 0.001
+Cdev <- 0.1
 ## CASE STUDY A: constant and known rewards ####
 PARAMS_A <- list()
 
@@ -24,12 +24,10 @@ PARAMS_A$N_case_studies = nrow(PARAMS_A$case_studies)
 PARAMS_A$log_scale_x = FALSE
 PARAMS_A$log_scale_y = FALSE
 PARAMS_A$type <- "linear"
-PARAMS_A$Rbau_plot <- 0.67
+PARAMS_A$Rbau_plot <- 0.5
 PARAMS_A$Rdep_plot <- 1
 # PARAMS_A$Rdep_plot <- 0.82
 PARAMS_A$label <- "A. Baseline"
-
-
 ## CASE STUDY B: decreasing Rbau and Rdep ####
 PARAMS_B <- list()
 
@@ -46,8 +44,8 @@ varying_vals <- unique(sort(c(varying_vals,5*varying_vals)))
 PARAMS_B$case_studies = expand.grid(
   alpha = varying_vals,
   beta = varying_vals,
-  Rbau = seq(0.1, 1, 0.1),
-  Rdep = seq(0.1, 1, 0.1)
+  Rbau = seq(0.2, 1, 0.2),
+  Rdep = seq(0.2, 1, 0.2)
 )
 PARAMS_B$case_studies <- PARAMS_B$case_studies %>%
   filter(Rbau<=Rdep)%>%
@@ -60,39 +58,13 @@ PARAMS_B$log_scale_y = FALSE
 PARAMS_B$type <- "linear"
 
 # PARAMS_B$alpha_plot <- -0.05
-PARAMS_B$alpha_plot <- -0.025
+PARAMS_B$alpha_plot <- -0.01
+# PARAMS_B$alpha_plot <- -0.025
 PARAMS_B$beta_plot <- 0
-PARAMS_B$Rbau_plot <- 0.67
+PARAMS_B$Rbau_plot <- 0.5
 # PARAMS_B$Rdep_plot <- 0.82
 PARAMS_B$Rdep_plot <- 1
 PARAMS_B$label <- "B. Declining rewards"
-
-## CASE STUDY B_bis: decreasing Rbau and Rdep ####
-PARAMS_B_bis <- list()
-
-PARAMS_B_bis$Cdev = Cdev
-PARAMS_B_bis$horizon = horizon
-PARAMS_B_bis$pdev = pdev
-PARAMS_B_bis$p_idle_idle = p_idle_idle
-PARAMS_B_bis$initial_belief = initial_belief
-
-# parameter grid for alpha and beta
-varying_vals <- c(-10^seq(-1, -3),0)
-varying_vals <- unique(sort(c(varying_vals,5*varying_vals, 2*varying_vals)))
-varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
-
-PARAMS_B_bis$case_studies = expand.grid(
-  alpha = 0,
-  beta = varying_vals,#will play the role of slope of deltaR
-  Rbau = 0,
-  Rdep = seq(-1, 1, 0.1) #will play the role of deltaR
-)
-
-PARAMS_B_bis$N_case_studies = nrow(PARAMS_B_bis$case_studies)
-
-PARAMS_B_bis$log_scale_x = FALSE
-PARAMS_B_bis$log_scale_y = FALSE
-PARAMS_B_bis$type <- "linear_deltaR"
 
 ## CASE STUDY C: decreasing Rbau, increasing Rdep ####
 PARAMS_C <- list()
@@ -123,8 +95,8 @@ PARAMS_C$log_scale_y = FALSE
 PARAMS_C$type <- "linear"
 
 PARAMS_C$alpha_plot <- 0#-0.025
-PARAMS_C$beta_plot <- 0.025
-PARAMS_C$Rbau_plot <- 0.67
+PARAMS_C$beta_plot <- 0.02
+PARAMS_C$Rbau_plot <- 0.1
 PARAMS_C$Rdep_plot <- 0
 PARAMS_C$label <- "C. Increasing benefits with the technology"
 
@@ -230,7 +202,6 @@ PARAMS_F$Rdep_plot <-  c(0,-0.5)
 # PARAMS_F$beta_plot <-  c(0.025,0.01)
 PARAMS_F$label <- "F. Uncertain non-stationary rewards"
 
-
 ## ALL CASE STUDIES ####
 CASE_STUDIES <- list(
   "A"=PARAMS_A,
@@ -241,15 +212,11 @@ CASE_STUDIES <- list(
   "F"=PARAMS_F)
 
 CASE_STUDIES_VALUE_NON_STAT <- list(
-  "B_bis"=PARAMS_B_bis
-  # ,
-  #
-  # "B"=PARAMS_B,
-  # "C"=PARAMS_C
-  )
+  "B"=PARAMS_B,
+  "C"=PARAMS_C)
 
 CASE_STUDIES_VALUE_MODEL_UNCERTAINTY <- list(
   "D"=PARAMS_D,
   "E"=PARAMS_E,
   "F"=PARAMS_F
-  )
+)

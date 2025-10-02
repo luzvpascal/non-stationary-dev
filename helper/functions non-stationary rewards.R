@@ -20,6 +20,19 @@ Reward_linear_time <- function(R, time, alpha){
   return(R1)
 }
 
+
+Reward_linear_DeltaR_time <- function(R, time, alpha){
+  #linear decline of R, bounded by 0 (ecosystem death) and 1
+  #R : initial reward
+  #time: time step (as int or vector)
+  #alpha: slope
+  # return(R + time*alpha)
+  R1 <- pmax(R + time*alpha,-1) #bound by 0
+  R1 <- pmin(R1,1)#bound by 1
+  return(R1)
+}
+
+
 Reward_logistic_time <- function(R, time, mu, phi){
   #linear decline of R, bounded by 0 (ecosystem death) and 1
   #R : initial reward
@@ -58,6 +71,29 @@ reward_non_stationary <- function(params){
     # for (t in seq(0,horizon-2)){ #
       reward_t = reward_instant(Reward_linear_time(Rbau, t, alpha),
                                 Reward_linear_time(Rdep, t, beta),
+                                Cdev)
+      if (t==0){
+        rew <- reward_t
+      } else{
+        rew <- rbind(rew,
+                     reward_t)
+      }
+    }
+
+    return(rew)
+  } else if (params$type=="linear_deltaR"){
+    #linear increase or decrease of rewards
+    Rbau <- params$Rbau
+    Rdep <- params$Rdep
+    Cdev <- params$Cdev #constant
+    horizon <- params$horizon
+    alpha <- params$alpha
+    beta <- params$beta
+
+    for (t in seq(0,horizon-1)){ #
+      # for (t in seq(0,horizon-2)){ #
+      reward_t = reward_instant(Reward_linear_DeltaR_time(Rbau, t, alpha),
+                                Reward_linear_DeltaR_time(Rdep, t, beta),
                                 Cdev)
       if (t==0){
         rew <- reward_t
@@ -398,6 +434,7 @@ get_Tmax <- function(params,
   }
   return(list(result=data.frame(value_non_stat=value_non_stat,
                     Tmax=sum(Tmax),
+                    Tmax_len = length(Tmax),
                     start=min(start)),
               outputs=outputs))
 
@@ -503,7 +540,8 @@ voi_non_stationary_rewards <- function(params,
     # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
     # time_steps <- c(1, round(params$horizon/2), params$horizon)
     # time_steps <- seq(params$horizon)
-    time_steps <- c(seq(1, params$horizon,10), params$horizon)
+    time_steps <- c(1, params$horizon)
+    # time_steps <- c(seq(1, params$horizon,10), params$horizon)
     all_names <- c(time_steps, "avg","integral")
 
     Tmax_names <- paste0("Tmax_", all_names)
@@ -551,15 +589,21 @@ voi_non_stationary_rewards <- function(params,
 
     df <- rbind(df,df_last)
 
+
     df <- df %>%
       mutate(deltaR=Rdep_1-Rbau_1,
              deltaR_gamma=ifelse(time==max(time),
                                  deltaR*gamma**time/(1-gamma),
-                                 deltaR*gamma**time))%>%
+                                 deltaR*gamma**time))
+
+    average_slope <- mean(df$deltaR-lag(df$deltaR), na.rm=TRUE)
+
+    df <- df %>%
       reframe(mean_deltaR=mean(deltaR),
               integral_gamma=sum(deltaR_gamma)*(1-gamma),
               diff_max=max(deltaR)-min(deltaR),
               end_deltaR = deltaR[time == max(time)])
+    df$average_slope <- average_slope
 
     #solve POMDP with average reward ####
     params_stationary$Rbau <- 0

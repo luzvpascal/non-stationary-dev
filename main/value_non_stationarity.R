@@ -1,10 +1,10 @@
 source("main/case_studies_parameters.R")
 # write_hmMDP <- FALSE
 # solve_hmMDP <- FALSE
-# run_voi <- FALSE
+run_voi <- FALSE
 write_hmMDP <- TRUE
 solve_hmMDP <- TRUE
-run_voi <- TRUE
+# run_voi <- TRUE
 start <- Sys.time()
 for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   results <- data.frame()
@@ -43,7 +43,7 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   }
 
   write.csv(results,
-            paste0("res/value_non_stat_horizon_",
+            paste0("res/value_non_stat_horizon_on_off_",
                    case_study_name,
                     "_",
                     params$horizon,

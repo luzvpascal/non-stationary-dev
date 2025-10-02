@@ -3,7 +3,7 @@
 #                          "tidyverse", "foreach", "parallel", "doParallel",
 #                          "mgcv", "fmsb", "dplyr", "tidyverse", "ggpubr",
 #                          "Matrix", "latex2exp", "svglite", "ragg", "grid",
-#                          "markovchain","metR")
+#                          "markovchain","metR","XML")
 #
 # # Install packages if not already installed
 # install_if_not_installed <- function(package) {
@@ -45,3 +45,4 @@ file.sources = list.files("helper", pattern="*.R",full.names=TRUE)
 sapply(file.sources,source,.GlobalEnv)
 source("global_variables.R")
 ##
+
