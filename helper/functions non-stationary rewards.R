@@ -628,29 +628,29 @@ voi_non_stationary_rewards <- function(params,
       Tmax_stat <- stationary_output$Tmax
       start_stat <- stationary_output$start
     }
-    #for integral annualized reward ####
-    params_stationary$Rbau <- 0
-    params_stationary$Rdep <- df$integral_gamma
-
-    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
-
-    stationary_output <- get_Tmax_stationary(params_stationary,
-                                             reward_POMDP,
-                                             outputs,
-                                             solve_hmMDP,
-                                             paste0(file_name_pomdpx,"_integral.pomdpx"),
-                                             paste0(file_name_policyx,"_integral.policyx"))
-    #compare
-    Tmax_values[length(time_steps)+2] <- stationary_output$Tmax
-    start_values[length(time_steps)+2] <- stationary_output$start
-    values[length(time_steps)+2] <- stationary_output$value_stat
-
-    if (stationary_output$value_stat>best_value_stat){
-      best_value_stat <- stationary_output$value_stat
-      best_t_stat <- t
-      Tmax_stat <- stationary_output$Tmax
-      start_stat <- stationary_output$start
-    }
+    # #for integral annualized reward ####
+    # params_stationary$Rbau <- 0
+    # params_stationary$Rdep <- df$integral_gamma
+    #
+    # reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+    #
+    # stationary_output <- get_Tmax_stationary(params_stationary,
+    #                                          reward_POMDP,
+    #                                          outputs,
+    #                                          solve_hmMDP,
+    #                                          paste0(file_name_pomdpx,"_integral.pomdpx"),
+    #                                          paste0(file_name_policyx,"_integral.policyx"))
+    # #compare
+    # Tmax_values[length(time_steps)+2] <- stationary_output$Tmax
+    # start_values[length(time_steps)+2] <- stationary_output$start
+    # values[length(time_steps)+2] <- stationary_output$value_stat
+    #
+    # if (stationary_output$value_stat>best_value_stat){
+    #   best_value_stat <- stationary_output$value_stat
+    #   best_t_stat <- t
+    #   Tmax_stat <- stationary_output$Tmax
+    #   start_stat <- stationary_output$start
+    # }
 
     #return the value of information
     result$value_stat=best_value_stat
@@ -682,18 +682,18 @@ voi_non_stationary_rewards <- function(params,
     result$Tmax_mean_an <- Tmax_mean_an
 
     ## analytical approximation ####
-    bIS_integral <- belief_invest_to_surrender(params$Cdev,
-                                           params$p_idle_idle,
-                                           0,
-                                           result$integral_gamma,
-                                           gamma
-    )
-
-    Tmax_integral_an <- max_years(params$initial_belief[1],
-                              params$p_idle_idle,
-                              bIS_integral)
-
-    result$Tmax_integral_an <- Tmax_integral_an
+    # bIS_integral <- belief_invest_to_surrender(params$Cdev,
+    #                                        params$p_idle_idle,
+    #                                        0,
+    #                                        result$integral_gamma,
+    #                                        gamma
+    # )
+    #
+    # Tmax_integral_an <- max_years(params$initial_belief[1],
+    #                           params$p_idle_idle,
+    #                           bIS_integral)
+    #
+    # result$Tmax_integral_an <- Tmax_integral_an
   }
   return(result)
 

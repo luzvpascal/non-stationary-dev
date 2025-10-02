@@ -2,7 +2,7 @@ horizon <- 50
 pdev <- 0.1
 p_idle_idle <- 1-pdev
 initial_belief <-  c(0.5,0.5)
-Cdev <- 0.001
+Cdev <- 0.01
 ## CASE STUDY A: constant and known rewards ####
 PARAMS_A <- list()
 
@@ -41,17 +41,15 @@ PARAMS_B$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
 varying_vals <- c(-10^seq(-1, -3),0)
-varying_vals <- unique(sort(c(varying_vals,5*varying_vals)))
+# varying_vals <- unique(sort(c(varying_vals,5*varying_vals)))
+varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
 
 PARAMS_B$case_studies = expand.grid(
   alpha = varying_vals,
   beta = varying_vals,
-  Rbau = seq(0.1, 1, 0.1),
-  Rdep = seq(0.1, 1, 0.1)
+  Rbau = seq(0, 1, 0.2),
+  Rdep = seq(0, 1, 0.2)
 )
-PARAMS_B$case_studies <- PARAMS_B$case_studies %>%
-  filter(Rbau<=Rdep)%>%
-  filter(!(beta==0 & alpha==0))
 
 PARAMS_B$N_case_studies = nrow(PARAMS_B$case_studies)
 
@@ -77,8 +75,9 @@ PARAMS_B_bis$p_idle_idle = p_idle_idle
 PARAMS_B_bis$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(-10^seq(-1, -3),0)
-varying_vals <- unique(sort(c(varying_vals,5*varying_vals, 2*varying_vals)))
+# varying_vals <- c(-10^seq(-1, -3),0)
+varying_vals <- seq(0,2,0.2)/50
+# varying_vals <- unique(sort(c(varying_vals,5*varying_vals, 2*varying_vals)))
 varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
 
 PARAMS_B_bis$case_studies = expand.grid(

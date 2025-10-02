@@ -21,8 +21,8 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
     row <- results_case_study[k,]
     params <- update_params_from_row(params,row, params_voi_names)
 
-    file_name_pomdpx <- paste0("res/uncertain_rewards_nonstat/pomdpx/", case_study_name,"_",k)
-    file_name_policyx <- paste0("res/uncertain_rewards_nonstat/policyx/", case_study_name,"_",k)
+    file_name_pomdpx <- paste0("res/uncertain_rewards_nonstat/pomdpx/", case_study_name,"_",k,"_",Cdev)
+    file_name_policyx <- paste0("res/uncertain_rewards_nonstat/policyx/", case_study_name,"_",k,"_",Cdev)
 
     ## value of information ####
     output <- voi_non_stationary_rewards(params,
@@ -47,6 +47,8 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
                    case_study_name,
                     "_",
                     params$horizon,
+                    "_",
+                    Cdev,
                     ".csv"), row.names = FALSE)
 }
 
