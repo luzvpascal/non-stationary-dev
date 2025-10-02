@@ -1,10 +1,10 @@
 source("main/case_studies_parameters.R")
 # write_hmMDP <- FALSE
 # solve_hmMDP <- FALSE
-run_voi <- FALSE
+# run_voi <- FALSE
 write_hmMDP <- TRUE
 solve_hmMDP <- TRUE
-# run_voi <- TRUE
+run_voi <- TRUE
 start <- Sys.time()
 for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   results <- data.frame()
