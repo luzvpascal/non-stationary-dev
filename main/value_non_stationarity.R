@@ -4,7 +4,7 @@ source("main/case_studies_parameters.R")
 # run_voi <- FALSE
 write_hmMDP <- TRUE
 solve_hmMDP <- TRUE
-run_voi <- TRUE
+run_voi <- FALSE
 start <- Sys.time()
 for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   results <- data.frame()
@@ -15,7 +15,8 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
   results_case_study <- params_case_study$case_studies
   params_voi_names <- names(results_case_study)
 
-  for (k in seq(params_case_study$N_case_studies)){
+  for (k in seq(2)){
+  # for (k in seq(params_case_study$N_case_studies)){
     print(k)
     params <- params_case_study
     row <- results_case_study[k,]
@@ -40,16 +41,43 @@ for (index_case_study in seq_along(CASE_STUDIES_VALUE_NON_STAT)){
 
     end <- Sys.time()
     print(end-start)
+    if (k==1){
+      # text <- paste0(names(results), ",")
+      write.table(matrix(names(results),nrow=1),
+                  paste0("res/value_non_stat_horizon_on_off_",
+                         case_study_name,
+                         "_",
+                         params$horizon,
+                         "_",
+                         Cdev,
+                         ".csv"),
+                  row.names = FALSE,
+                  append = TRUE,
+                  col.names = FALSE,
+                  sep = ",")
+    }
+    write.table(results_now,
+              paste0("res/value_non_stat_horizon_on_off_",
+                     case_study_name,
+                      "_",
+                      params$horizon,
+                      "_",
+                      Cdev,
+                      ".csv"),
+              row.names = FALSE,
+              append = TRUE,
+              col.names = FALSE,
+              sep = ",")
   }
 
-  write.csv(results,
-            paste0("res/value_non_stat_horizon_on_off_",
-                   case_study_name,
-                    "_",
-                    params$horizon,
-                    "_",
-                    Cdev,
-                    ".csv"), row.names = FALSE)
+  # write.csv(results,
+  #           paste0("res/value_non_stat_horizon_on_off_",
+  #                  case_study_name,
+  #                   "_",
+  #                   params$horizon,
+  #                   "_",
+  #                   Cdev,
+  #                   ".csv"), row.names = FALSE)
 }
 
 end <- Sys.time()
