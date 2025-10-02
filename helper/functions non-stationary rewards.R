@@ -519,8 +519,8 @@ voi_non_stationary_rewards <- function(params,
   #only for case studies without uncertainty about reward trajectory
 
   output_list <- get_Tmax(params,
-                     write_hmMDP,
-                     solve_hmMDP,
+                     FALSE,# write_hmMDP,
+                     FALSE,# solve_hmMDP,
                      paste0(file_name_pomdpx,".pomdpx"),
                      paste0(file_name_policyx, ".policyx"))
 
