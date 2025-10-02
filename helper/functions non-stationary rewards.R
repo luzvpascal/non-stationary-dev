@@ -534,7 +534,7 @@ voi_non_stationary_rewards <- function(params,
     params_stationary$alpha <- 0
     params_stationary$beta <- 0
 
-    best_value_stat <- 0
+    best_value_stat <- -Inf
     best_t_stat <- 0
 
     # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
