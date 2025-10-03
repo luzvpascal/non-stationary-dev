@@ -42,7 +42,7 @@ PARAMS_B$initial_belief = initial_belief
 # parameter grid for alpha and beta
 # varying_vals <- c(-10^seq(-1, -3),0)
 # varying_vals <- unique(sort(c(varying_vals,5*varying_vals)))
-varying_vals <- seq(0,1,0.2)/50
+varying_vals <- seq(0,1,0.2)/horizon
 varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
 
 PARAMS_B$case_studies = expand.grid(
@@ -52,11 +52,12 @@ PARAMS_B$case_studies = expand.grid(
   Rdep = seq(0, 1, 0.2)
 )
 PARAMS_B$case_studies <-PARAMS_B$case_studies %>%
-  filter(!(Rdep==0 & beta<=0),
+  filter(
+         !(Rdep==0 & beta<=0),
          !(Rdep==1 & beta>0),
          !(Rbau==0 & alpha<0),
          !(Rbau==1 & alpha>0),
-         !((Rdep<=Rbau) & (beta<=alpha))
+         !((Rdep<Rbau) & (beta<alpha))
   )
 
 PARAMS_B$N_case_studies = nrow(PARAMS_B$case_studies)
@@ -111,17 +112,20 @@ PARAMS_C$p_idle_idle = p_idle_idle
 PARAMS_C$initial_belief = initial_belief
 
 # parameter grid for alpha and beta
-varying_vals <- c(10^seq(-1, -3),0)
+varying_vals <- seq(0,1,0.1)/horizon
+varying_vals <- unique(sort(c(-varying_vals, varying_vals)))
 
-PARAMS_C$case_studies = expand.grid(
-  alpha = -varying_vals,
-  beta = varying_vals,
-  Rbau = seq(0, 1, 0.2),
-  Rdep = seq(0, 1, 0.2)
+set.seed(5)
+N <- 5000
+PARAMS_C$case_studies = data.frame(
+  alpha = sample(varying_vals, N, replace=TRUE),
+  beta = sample(varying_vals, N, replace=TRUE),
+  Rbau = runif(N),
+  Rdep=runif(N)
 )
-PARAMS_C$case_studies <- PARAMS_C$case_studies %>%
-  filter(Rbau>=Rdep)%>%
-  filter(!(beta==0 & alpha==0))
+
+PARAMS_C$case_studies <-PARAMS_C$case_studies %>%
+  filter(!((Rdep<Rbau) & (beta<alpha)))
 
 PARAMS_C$N_case_studies = nrow(PARAMS_C$case_studies)
 
@@ -251,9 +255,9 @@ CASE_STUDIES_VALUE_NON_STAT <- list(
   # "B_bis"=PARAMS_B_bis
   # ,
   #
-  "B"=PARAMS_B
+  # "B"=PARAMS_B
   # ,
-  # "C"=PARAMS_C
+  "C"=PARAMS_C
   )
 
 CASE_STUDIES_VALUE_MODEL_UNCERTAINTY <- list(

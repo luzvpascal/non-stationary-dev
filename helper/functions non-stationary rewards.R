@@ -519,8 +519,8 @@ voi_non_stationary_rewards <- function(params,
   #only for case studies without uncertainty about reward trajectory
 
   output_list <- get_Tmax(params,
-                     FALSE,# write_hmMDP,
-                     FALSE,# solve_hmMDP,
+                     write_hmMDP,
+                     solve_hmMDP,
                      paste0(file_name_pomdpx,".pomdpx"),
                      paste0(file_name_policyx, ".policyx"))
 
@@ -540,9 +540,12 @@ voi_non_stationary_rewards <- function(params,
     # for each time step, get the reward function (might be uncertain), solve the stationary POMDP
     # time_steps <- c(1, round(params$horizon/2), params$horizon)
     # time_steps <- seq(params$horizon)
-    time_steps <- c(1, params$horizon)
-    # time_steps <- c(seq(1, params$horizon,10), params$horizon)
-    all_names <- c(time_steps, "avg","integral")
+    # time_steps <- c(1, params$horizon)
+    time_steps <- c(1)
+    all_names <- c(time_steps
+                   # , "avg"
+                   # ,"integral"
+                   )
 
     Tmax_names <- paste0("Tmax_", all_names)
     start_names <- paste0("start_", all_names)
@@ -606,28 +609,28 @@ voi_non_stationary_rewards <- function(params,
     df$average_slope <- average_slope
 
     #solve POMDP with average reward ####
-    params_stationary$Rbau <- 0
-    params_stationary$Rdep <- df$mean_deltaR
-
-    reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
-
-    stationary_output <- get_Tmax_stationary(params_stationary,
-                                             reward_POMDP,
-                                             outputs,
-                                             solve_hmMDP,
-                                             paste0(file_name_pomdpx,"_average.pomdpx"),
-                                             paste0(file_name_policyx,"_average.policyx"))
-    #compare
-    Tmax_values[length(time_steps)+1] <- stationary_output$Tmax
-    start_values[length(time_steps)+1] <- stationary_output$start
-    values[length(time_steps)+1] <- stationary_output$value_stat
-
-    if (stationary_output$value_stat>best_value_stat){
-      best_value_stat <- stationary_output$value_stat
-      best_t_stat <- t
-      Tmax_stat <- stationary_output$Tmax
-      start_stat <- stationary_output$start
-    }
+    # params_stationary$Rbau <- 0
+    # params_stationary$Rdep <- df$mean_deltaR
+    #
+    # reward_POMDP <- reward_non_stationary_wrapper(params_stationary)[[1]]
+    #
+    # stationary_output <- get_Tmax_stationary(params_stationary,
+    #                                          reward_POMDP,
+    #                                          outputs,
+    #                                          solve_hmMDP,
+    #                                          paste0(file_name_pomdpx,"_average.pomdpx"),
+    #                                          paste0(file_name_policyx,"_average.policyx"))
+    # #compare
+    # Tmax_values[length(time_steps)+1] <- stationary_output$Tmax
+    # start_values[length(time_steps)+1] <- stationary_output$start
+    # values[length(time_steps)+1] <- stationary_output$value_stat
+    #
+    # if (stationary_output$value_stat>best_value_stat){
+    #   best_value_stat <- stationary_output$value_stat
+    #   best_t_stat <- t
+    #   Tmax_stat <- stationary_output$Tmax
+    #   start_stat <- stationary_output$start
+    # }
     # #for integral annualized reward ####
     # params_stationary$Rbau <- 0
     # params_stationary$Rdep <- df$integral_gamma
@@ -668,18 +671,18 @@ voi_non_stationary_rewards <- function(params,
     result <- merge(result, data_Tmax)
 
     ## analytical approximation ####
-    bIS_mean <- belief_invest_to_surrender(params$Cdev,
-                                      params$p_idle_idle,
-                                      0,
-                                      result$mean_deltaR,
-                                      gamma
-    )
-
-    Tmax_mean_an <- max_years(params$initial_belief[1],
-                         params$p_idle_idle,
-                         bIS_mean)
-
-    result$Tmax_mean_an <- Tmax_mean_an
+    # bIS_mean <- belief_invest_to_surrender(params$Cdev,
+    #                                   params$p_idle_idle,
+    #                                   0,
+    #                                   result$mean_deltaR,
+    #                                   gamma
+    # )
+    #
+    # Tmax_mean_an <- max_years(params$initial_belief[1],
+    #                      params$p_idle_idle,
+    #                      bIS_mean)
+    #
+    # result$Tmax_mean_an <- Tmax_mean_an
 
     ## analytical approximation ####
     # bIS_integral <- belief_invest_to_surrender(params$Cdev,
